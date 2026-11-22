@@ -93,3 +93,12 @@ http://localhost:8080/tests/interface.html (interface).
 Pendant le développement, dans Chrome : DevTools → *Application* →
 *Service workers* → cocher **Update on reload**. Avant chaque mise en ligne,
 incrémenter `VERSION` dans `sw.js`.
+
+## Auteur et droits
+
+Créé par **Aboubakar Assidikh Youssouf** — contact :
+aboubakarassidikh@gmail.com
+
+© 2026 SolaDima. Tous droits réservés. L'utilisation de l'application est
+autorisée ; le code et les contenus ne peuvent être copiés, modifiés ni
+redistribués sans l'accord écrit de l'auteur (voir [LICENSE](LICENSE)).

@@ -143,6 +143,36 @@
   .graph .besoin{ stroke:var(--text); stroke-width:1.5; stroke-dasharray:5 4; }
   .graph .c-solaire{ fill:none; stroke:var(--s1); stroke-width:2; }
   .graph .c-groupe{ fill:none; stroke:var(--s2); stroke-width:2; }
+  /* --- Accueil, clients, onglets d'un client, lignes d'appareils --- */
+  header h1{ cursor:pointer; }
+  #sousnav{ position:sticky; top:var(--hh, 58px); z-index:19; background:var(--card); border-bottom:1px solid var(--line); display:none; align-items:stretch; }
+  #sousnav.on{ display:flex; }
+  #sousnav .retour{ border:0; background:none; color:var(--primary); font-size:26px; padding:0 14px; }
+  #sousnav .onglets{ display:flex; flex:1; overflow-x:auto; }
+  #sousnav .onglets button{ flex:1; border:0; background:none; padding:12px 6px; font-size:14px; color:var(--muted); border-bottom:3px solid transparent; font-family:inherit; white-space:nowrap; }
+  #sousnav .onglets button.active{ color:var(--primary); border-bottom-color:var(--primary); font-weight:700; }
+  .hero{ text-align:center; padding:18px 8px 6px; }
+  .hero-ic{ font-size:52px; line-height:1; }
+  .hero h2{ margin:8px 0 6px; font-size:26px; color:var(--primary); }
+  .hero p{ margin:0 auto 14px; max-width:420px; color:var(--muted); line-height:1.5; }
+  .etapes{ list-style:none; padding:0; margin:0 0 14px; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .etapes li{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 6px; font-size:13px; }
+  .etapes b{ display:block; margin-bottom:3px; } .etapes span{ color:var(--muted); font-size:12px; }
+  .install{ background:var(--primary); color:var(--onp); border-radius:16px; padding:14px; margin-bottom:14px; display:flex; gap:12px; align-items:center; }
+  .install .tx{ flex:1; font-size:14px; line-height:1.4; } .install b{ display:block; font-size:16px; }
+  .install button{ border:0; border-radius:12px; background:var(--onp); color:var(--primary); font-weight:700; padding:12px 14px; font-size:15px; font-family:inherit; }
+  .credit{ text-align:center; color:var(--muted); font-size:12px; line-height:1.6; margin:18px 0 0; }
+  .credit a, #aPropos a{ color:var(--primary); }
+  .ligne-ap{ display:flex; align-items:center; gap:10px; padding:12px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .ligne-ap:last-of-type{ border-bottom:0; }
+  .ligne-ap .info{ flex:1; min-width:0; }
+  .ligne-ap .info b{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ligne-ap .info small{ color:var(--muted); display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ligne-ap .wh2{ font-weight:700; white-space:nowrap; font-size:14px; }
+  .ligne-ap .chev{ color:var(--muted); font-size:18px; }
+  .ap .tete{ display:flex; align-items:center; justify-content:space-between; margin:-2px 0 4px; cursor:pointer; color:var(--primary); font-size:13px; font-weight:600; }
+  .resume-l{ display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:15px; }
+  .resume-l:last-child{ border-bottom:0; } .resume-l span:first-child{ color:var(--muted); }
   .repart{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; }
   .repart span{ white-space:nowrap; color:var(--muted); } .repart b{ color:var(--text); }
   .repart input[type=range]{ flex:1; min-width:0; accent-color:var(--primary); height:28px; }
@@ -575,18 +605,54 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <body>
 
 <header>
-  <h1>☀️ SolaDima<small id="titre">Besoins</small></h1>
-  <button onclick="enregistrerDossier()" aria-label="Enregistrer le dossier">💾</button>
+  <h1 onclick="vue('accueil')">☀️ SolaDima<small id="titre">Accueil</small></h1>
   <button onclick="toggleDark()" aria-label="Mode sombre">🌙</button>
 </header>
+<!-- Onglets d'un client ouvert -->
+<div id="sousnav">
+  <button class="retour" onclick="vue('clients')" aria-label="Retour à la liste des clients">‹</button>
+  <div class="onglets">
+    <button data-v="client" onclick="vue('client')">Fiche</button>
+    <button data-v="besoins" onclick="vue('besoins')">Besoins</button>
+    <button data-v="systeme" onclick="vue('systeme')">Système</button>
+    <button data-v="devis" onclick="vue('devis')">Devis</button>
+  </div>
+</div>
 
 <main>
-  <!-- ===== BESOINS ===== -->
-  <section id="v-besoins" class="view active">
+  <!-- ===== ACCUEIL ===== -->
+  <section id="v-accueil" class="view active">
+    <div class="hero">
+      <div class="hero-ic">☀️</div>
+      <h2>SolaDima</h2>
+      <p>Dimensionnez une installation solaire et faites le devis de votre client en quelques minutes, même sans internet.</p>
+      <ol class="etapes"><li><b>⚡ Besoins</b><span>les appareils du client</span></li><li><b>🔆 Système</b><span>panneaux, batteries, onduleur</span></li><li><b>🧾 Devis</b><span>PDF ou WhatsApp</span></li></ol>
+    </div>
+    <div id="boxInstall"></div>
+    <div class="card">
+      <button class="btn" onclick="nouveauClient()">＋ Nouveau client</button>
+      <button class="btn sec" style="margin-top:10px" onclick="dimensionnementRapide()">⚡ Commencer un dimensionnement</button>
+      <button class="btn sec" style="margin-top:10px" onclick="vue('clients')">👥 Mes clients</button>
+    </div>
+    <div class="card" id="accRecents"></div>
+    <p class="credit">© 2026 SolaDima — Aboubakar Assidikh Youssouf. Tous droits réservés.<br><a href="#" onclick="vue('plus');setTimeout(()=>document.getElementById('aPropos').scrollIntoView(),50);return false">À propos</a></p>
+  </section>
+
+  <!-- ===== CLIENTS ===== -->
+  <section id="v-clients" class="view">
+    <div class="card">
+      <button class="btn" onclick="nouveauClient()">＋ Nouveau client</button>
+      <input id="rechDos" type="text" placeholder="🔍 Rechercher un client…" oninput="renderDossiers()" style="margin-top:12px" />
+      <div id="listeDos"></div>
+    </div>
+  </section>
+
+  <!-- ===== FICHE CLIENT ===== -->
+  <section id="v-client" class="view">
     <div class="card">
       <h2>Client</h2>
       <label style="margin-top:0">Nom du client</label>
-      <input id="cNom" type="text" placeholder="Ex : Mahamat Ali" autocomplete="off" oninput="S.client=this.value;save()" />
+      <input id="cNom" type="text" placeholder="Ex : Mahamat Ali" autocomplete="off" oninput="S.client=this.value;save();majTitre()" />
       <div class="row">
         <div><label>Téléphone / WhatsApp</label><input id="cTel" type="tel" inputmode="tel" placeholder="66 00 00 00" oninput="S.tel=this.value;save()" /></div>
         <div><label>Quartier / adresse</label><input id="cLieu" type="text" placeholder="Ex : Farcha" oninput="S.lieu=this.value;save()" /></div>
@@ -594,6 +660,12 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <label>Ville (sert à l'ensoleillement)</label>
       <select id="cVille" onchange="setVille(this.value)"></select>
     </div>
+    <div class="card" id="ficheResume"></div>
+    <button class="btn danger" onclick="supprimerDossier(S.id, true)">🗑 Supprimer ce client</button>
+  </section>
+
+  <!-- ===== BESOINS ===== -->
+  <section id="v-besoins" class="view">
     <div class="card">
       <h2>Appareils du client</h2>
       <div id="listeAp"></div>
@@ -686,12 +758,6 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
   <!-- ===== PLUS ===== -->
   <section id="v-plus" class="view">
     <div class="card">
-      <h2>Dossiers enregistrés</h2>
-      <input id="rechDos" type="text" placeholder="🔍 Rechercher un client…" oninput="renderDossiers()" />
-      <div id="listeDos"></div>
-      <br><button class="btn sec" onclick="nouveauDossier()">＋ Nouveau dossier</button>
-    </div>
-    <div class="card">
       <h2>Mon entreprise</h2>
       <label style="margin-top:0">Nom (affiché sur le devis)</label>
       <input id="rNom" type="text" placeholder="Ex : Barkey Light" oninput="sauverReglages()" />
@@ -745,6 +811,14 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </div>
       <input type="file" id="imp" accept=".json,application/json" style="display:none" onchange="importerSauvegarde(event)" />
     </div>
+    <div class="card" id="aPropos">
+      <h2>À propos</h2>
+      <p style="margin:0 0 6px"><b>☀️ SolaDima</b> — dimensionnement solaire et devis.</p>
+      <p class="small" style="margin:0;line-height:1.6">Créé par <b>Aboubakar Assidikh Youssouf</b><br>
+        Contact : <a href="mailto:aboubakarassidikh@gmail.com">aboubakarassidikh@gmail.com</a><br>
+        © 2026 SolaDima. Tous droits réservés.<br>
+        <span class="muted">L'utilisation de l'application est autorisée. Le code, les textes et les données ne peuvent être copiés, modifiés ni redistribués sans l'accord écrit de l'auteur.</span></p>
+    </div>
     <div class="card">
       <h2>À savoir</h2>
       <details open>
@@ -760,9 +834,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <div id="actionbar"></div>
 
 <nav>
-  <button class="active" data-v="besoins" onclick="vue('besoins')"><span>⚡</span>Besoins</button>
-  <button data-v="systeme" onclick="vue('systeme')"><span>🔆</span>Système</button>
-  <button data-v="devis" onclick="vue('devis')"><span>🧾</span>Devis</button>
+  <button class="active" data-v="accueil" onclick="vue('accueil')"><span>🏠</span>Accueil</button>
+  <button data-v="clients" onclick="vue('clients')"><span>👥</span>Clients</button>
   <button data-v="materiel" onclick="vue('materiel')"><span>📦</span>Matériel</button>
   <button data-v="plus" onclick="vue('plus')"><span>☰</span>Plus</button>
 </nav>

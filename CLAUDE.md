@@ -39,7 +39,7 @@ WhatsApp), pour les installateurs de N'Djaména (F CFA, indicatif +235).
 - `index.html` : styles et balisage. Les bibliothèques jsPDF 2.5.1 et
   html2canvas y sont **intégrées** pour fonctionner hors ligne ; ne pas les
   remplacer par des liens CDN.
-- `app.js` : interface (onglets, devis, PDF, dossiers, migration des données v1).
+- `app.js` : interface. Navigation : **Accueil** (présentation, nouveau client, dimensionnement rapide, bouton « Installer » visible seulement dans le navigateur), **Clients** (liste simple → fiche du client → onglets Fiche / Besoins / Système / Devis), **Matériel**, **Plus** (réglages, à propos). Les clients sont enregistrés automatiquement. Migration des données v1.
 - `calcul.js` : **moteur de dimensionnement**, sans accès à la page, testable
   seul. Point d'entrée `SolaCalcul.dimensionner(appareils, params, materiel)`.
 - `donnees.js` : appareils courants et catalogue par défaut (valeurs typiques).
@@ -70,6 +70,10 @@ de la protection), protections. Toute constante nouvelle est nommée en tête de
 - `node outils/valider-pvgis.mjs` (internet) : simulation horaire PVGIS des
   systèmes proposés. Critère : ≲ 10 % de jours « batterie vide » au pire mois,
   ≲ 2 % sur l'année, avec la réserve par défaut (nuit + ½ jour).
+
+## 2 bis. Auteur et droits
+
+Auteur : **Aboubakar Assidikh Youssouf** (aboubakarassidikh@gmail.com). © 2026 SolaDima, tous droits réservés (voir `LICENSE`). Garder la mention dans l'accueil et la section « À propos ».
 
 ## 3. Données : propres à chaque utilisateur
 

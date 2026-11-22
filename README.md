@@ -36,8 +36,11 @@ efface aussi celles de SolaDima.
 
 ## Fonctionnement
 
-1. **Besoins** : la ville du client et ses appareils (puissance, heures de
-   jour et de nuit, démarrage des moteurs, usage ponctuel, existe en 12 V).
+1. **Besoins** : la ville du client et ses appareils (puissance, heures par
+   jour réparties entre le jour et la nuit avec une barre, démarrage des
+   moteurs, usage ponctuel, existe en 12 V). Un appareil saisi librement
+   (« congélateur », « Lampe 15 W », « clim 1,5 CV »…) est reconnu et des
+   valeurs courantes sont proposées.
 2. **Système** : quatre solutions comparées, avec leur prix :
    - **kit 12 V** sans onduleur (régulateur et batterie, appareils en 12 V) ;
    - **régulateur** (PWM ou MPPT) **+ convertisseur** séparé ;

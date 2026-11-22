@@ -53,7 +53,7 @@ const CHAMPS = {
 const nomAuto = m => SC.nomAuto(m);
 const cleMat = m => [m.type, m.techno, m.tech, m.w, m.v, m.ah, m.a, m.onde, m.usage, m.section, m.genre, m.calibre, m.vmax, m.nom && m.type==='autre' ? m.nom : ''].join('|');
 function migrerMateriel(L){
-  const ancienNom = /^(Panneau solaire \d|Batterie (lithium|gel)|Onduleur pur sinus|Régulateur solaire MPPT \d+ A$)/;
+  const ancienNom = /^(Panneau solaire \d|Batterie (lithium|gel)|Onduleur pur sinus|Régulateur solaire MPPT \d+ A$|Onduleur hybride \d+ W \d+ V \(MPPT)/;
   L.forEach(m => {
     if(m.type==='onduleur'){ m.type = 'convertisseur'; Object.assign(m, { ...specConvertisseur(m.w,'pur'), ...m, type:'convertisseur' }); m.onde = m.onde||'pur'; }
     if(m.type==='panneau' && !(m.voc>0)) Object.assign(m, specPanneau(m.w||400), { w:m.w });
@@ -77,7 +77,7 @@ const mat = t => materiel.filter(m => m.type===t);
    ============================================================ */
 function prochainNumero(){ const n = lire(K.cpt, 0) + 1; ecrire(K.cpt, n); return 'SD-' + String(n).padStart(3,'0'); }
 function paramsDefaut(){
-  return { ...SC.PARAMS_DEFAUT, ville:reglages.ville, tech:reglages.tech, aut:reglages.aut, poussiere:reglages.poussiere, marge:reglages.marge, simul:reglages.simul, heuresGroupe:8 };
+  return { ...SC.PARAMS_DEFAUT, ville:reglages.ville, tech:reglages.tech, aut:reglages.aut, poussiere:reglages.poussiere, marge:reglages.marge, simul:reglages.simul, heuresGroupe:0 };
 }
 function nouvelleEtude(){
   return { id:null, v:2, num:prochainNumero(), date:aujourdhui(), client:'', tel:'', lieu:'', appareils:[], params: paramsDefaut(),
@@ -88,9 +88,11 @@ function migrerEtude(d){
   if(d.v === 2) return d;
   d.appareils = (d.appareils||[]).map(a => {
     if(a.hJ !== undefined) return a;
-    const h = +a.h||0, per = a.per||'mixte', p = preset(a.nom);
+    const h = +a.h||0, per = a.per||'mixte', p = preset(a.nom), sg = DONNEES.suggerer(a.nom);
+    // Appareil non prévu : on reprend le démarrage et l'usage reconnus d'après son nom (ex. « congélateur » → compresseur)
+    const dem = p ? p[4] : sg ? sg.dem : ((a.surge||1) > 1 ? 3 : 1);
     return { nom:a.nom, qte:a.qte, w:a.w, hJ: per==='jour' ? h : per==='nuit' ? 0 : h/2, hN: per==='nuit' ? h : per==='jour' ? 0 : h/2,
-      dem: (a.surge||1) > 1 ? (p ? p[4] : 3) : 1, ponctuel: p ? p[5] : false, dc12: p ? p[6] : false };
+      dem, ponctuel: p ? p[5] : sg ? sg.ponctuel : false, dc12: p ? p[6] : sg ? sg.dc12 : false };
   });
   const o = d.params || {};
   d.params = { ...paramsDefaut(), tech:o.tech||'lithium', aut: o.aut!==undefined ? o.aut : 0.5, vsys:o.vsys||'auto', marge: o.marge!==undefined ? o.marge : 0.1 };
@@ -120,7 +122,14 @@ function calculer(){
   if(_cache.cle !== cle) _cache = { cle, r: SC.dimensionner(S.appareils, S.params, materiel) };
   return _cache.r;
 }
-const optionsEco = () => ({ heuresGroupe: S.params.heuresGroupe||8, prixEssence: reglages.prixEssence, prixGasoil: reglages.prixGasoil,
+// Heures de marche d'un groupe qui rendrait le même service : la plus longue utilisation d'un appareil
+// (hors appareils permanents comme une box), entre 4 et 24 h
+function heuresGroupeSuggere(){
+  const h = S.appareils.filter(a => a.qte>0 && a.w>0).map(a => (+a.hJ||0)+(+a.hN||0)).filter(x => x < 20);
+  return h.length ? Math.min(24, Math.max(4, Math.ceil(Math.max(...h)))) : 8;
+}
+const heuresGroupe = () => S.params.heuresGroupe > 0 ? S.params.heuresGroupe : heuresGroupeSuggere();
+const optionsEco = () => ({ heuresGroupe: heuresGroupe(), prixEssence: reglages.prixEssence, prixGasoil: reglages.prixGasoil,
   entretienHeure: reglages.entretienHeure, prixGroupeKva: reglages.prixGroupeKva, prixKwhAppoint: reglages.prixKwhAppoint });
 
 /* ============================================================
@@ -169,10 +178,10 @@ function renderAppareils(){
         <div><label>Quantité</label><input type="number" class="qte" inputmode="decimal" value="${esc(a.qte)}" /></div>
         <div><label>Puissance (W)</label><input type="number" class="w" inputmode="decimal" value="${esc(a.w)}" /></div>
       </div>
-      <div class="row">
-        <div><label>☀ Heures de jour</label><input type="number" class="hj" inputmode="decimal" step="0.1" value="${esc(a.hJ)}" /></div>
-        <div><label>🌙 Heures de nuit</label><input type="number" class="hn" inputmode="decimal" step="0.1" value="${esc(a.hN)}" /></div>
-      </div>
+      <label>Heures d'utilisation par jour</label>
+      <input type="number" class="htot" inputmode="decimal" step="0.5" min="0" max="24" value="${esc(+(((+a.hJ||0)+(+a.hN||0)).toFixed(2)))}" />
+      ${barreJourNuit(a)}
+      ${blocSuggestion(a, i)}
       <label>Démarrage</label>
       <div class="chips">${DEMARRAGES.map(([v,t])=>`<button class="chip ${Math.abs((a.dem||1)-v)<0.01?'on':''}" onclick="setAp(${i},'dem',${v})">${t}</button>`).join('')}</div>
       <label class="coche"><input type="checkbox" ${a.ponctuel?'checked':''} onchange="setAp(${i},'ponctuel',this.checked)"> Usage ponctuel (fer, bouilloire, pompe…)</label>
@@ -180,18 +189,76 @@ function renderAppareils(){
       <div class="foot"><button class="iconbtn" onclick="supprimerAppareil(${i})" aria-label="Supprimer">🗑</button><div class="tot"><span class="wh">${fmt(a.qte*a.w*((+a.hJ||0)+(+a.hN||0)))}</span>&nbsp;Wh/jour</div></div>
     </div>`).join('');
 }
+/* ---------- Répartition jour / nuit ----------
+   Une journée a 12 h de jour (6 h – 18 h) et 12 h de nuit : un appareil ne peut pas dépasser 12 h dans chaque
+   période. La barre déplace les heures entre le jour (à gauche) et la nuit (à droite). */
+const bornesNuit = tot => ({ min: Math.max(0, tot-12), max: Math.min(tot, 12) });
+const hFr = h => String(+(+h).toFixed(2)).replace('.', ',') + ' h';
+function barreJourNuit(a){
+  const tot = (+a.hJ||0)+(+a.hN||0), b = bornesNuit(tot), fixe = b.max - b.min < 0.01;
+  return `<div class="repart">
+    <span class="rj">☀ Jour <b>${hFr(a.hJ||0)}</b></span>
+    <input type="range" class="hrep" min="${b.min}" max="${b.max}" step="0.25" value="${+a.hN||0}" ${fixe?'disabled':''} aria-label="Répartition des heures entre le jour et la nuit" />
+    <span class="rn">🌙 Nuit <b>${hFr(a.hN||0)}</b></span>
+  </div>`;
+}
+function majRepartition(el, a){
+  const tot = (+a.hJ||0)+(+a.hN||0), b = bornesNuit(tot), r = el.querySelector('.hrep');
+  r.min = b.min; r.max = b.max; r.value = a.hN; r.disabled = b.max - b.min < 0.01;
+  el.querySelector('.rj b').textContent = hFr(a.hJ); el.querySelector('.rn b').textContent = hFr(a.hN);
+}
+/* ---------- Suggestions d'après le nom de l'appareil ---------- */
+function ecartsSuggestion(a){
+  const s = DONNEES.suggerer(a.nom); if(!s) return null;
+  const diff = [];
+  if(!(a.w > 0)) diff.push('w');
+  if(!((+a.hJ||0)+(+a.hN||0) > 0)) diff.push('h');
+  if(!a.manuel && Math.abs((a.dem||1) - s.dem) > 0.01) diff.push('dem');
+  if(!a.manuel && !!a.ponctuel !== s.ponctuel) diff.push('ponctuel');
+  return { s, diff };
+}
+function blocSuggestion(a, i){
+  const e = ecartsSuggestion(a); if(!e || !e.diff.length) return '';
+  const s = e.s, dem = DEMARRAGES.find(x => Math.abs(x[0]-s.dem) < 0.01)?.[1] || '';
+  return `<div class="sugg">💡 Pour un ${esc(s.categorie)}, valeurs courantes : <b>${fmt(s.w)} W</b>, ${hFr(s.hJ+s.hN)}/jour (${hFr(s.hJ)} jour, ${hFr(s.hN)} nuit), démarrage ${esc(dem.toLowerCase())}${s.ponctuel?', usage ponctuel':''}.
+    <button class="btn small" onclick="appliquerSuggestion(${i})">Appliquer</button></div>`;
+}
+// Remplit ce qui est vide ; corrige le démarrage et l'usage ponctuel tant que l'utilisateur ne les a pas choisis lui-même
+function appliquerSuggestion(i, silencieux){
+  const a = S.appareils[i], e = ecartsSuggestion(a); if(!e) return;
+  const s = e.s;
+  if(!(a.w > 0)) a.w = s.w;                                         // jamais d'écrasement d'une puissance saisie
+  if(!((+a.hJ||0)+(+a.hN||0) > 0)){ a.hJ = s.hJ; a.hN = s.hN; }      // ni d'heures saisies
+  if(!a.manuel){ a.dem = s.dem; a.ponctuel = s.ponctuel; a.dc12 = s.dc12; }
+  renderAppareils(); renderBesoinsRes(); majBarre(); save();
+  if(!silencieux) toast('Valeurs appliquées : ajustez-les si besoin');
+}
 $('listeAp').addEventListener('input', e=>{
   const el = e.target.closest('.ap'); if(!el) return;
-  const a = S.appareils[+el.dataset.i], c = e.target.classList, n = parseFloat(e.target.value)||0;
+  const a = S.appareils[+el.dataset.i], c = e.target.classList, n = Math.max(0, parseFloat(e.target.value)||0);
   if(c.contains('des')) a.nom = e.target.value;
-  if(c.contains('qte')) a.qte = n; if(c.contains('w')) a.w = n; if(c.contains('hj')) a.hJ = n; if(c.contains('hn')) a.hN = n;
+  if(c.contains('qte')) a.qte = n; if(c.contains('w')) a.w = n;
+  if(c.contains('htot')){
+    // On garde la même proportion jour/nuit, puis on respecte la limite de 12 h par période
+    const tot = Math.min(24, n), ancien = (+a.hJ||0)+(+a.hN||0), partNuit = ancien > 0 ? (+a.hN||0)/ancien : 0.5;
+    const b = bornesNuit(tot); a.hN = Math.min(b.max, Math.max(b.min, Math.round(tot*partNuit*4)/4)); a.hJ = +(tot - a.hN).toFixed(2);
+    majRepartition(el, a);
+  }
+  if(c.contains('hrep')){ const tot = (+a.hJ||0)+(+a.hN||0); a.hN = parseFloat(e.target.value)||0; a.hJ = +(tot - a.hN).toFixed(2); majRepartition(el, a); }
   el.querySelector('.wh').textContent = fmt(a.qte*a.w*((+a.hJ||0)+(+a.hN||0)));
   renderBesoinsRes(); majBarre(); save();
 });
 $('listeAp').addEventListener('change', e=>{
-  if(!e.target.classList.contains('des')) return;
-  const el = e.target.closest('.ap'), a = S.appareils[+el.dataset.i], p = preset(a.nom);
-  if(p && !a.w){ Object.assign(a, depuisPreset(p), { qte:a.qte||1 }); renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
+  const el = e.target.closest('.ap'); if(!el) return;
+  const i = +el.dataset.i, a = S.appareils[i];
+  if(e.target.classList.contains('des')){
+    const p = preset(a.nom);
+    if(p && !a.w){ Object.assign(a, depuisPreset(p), { qte:a.qte||1 }); renderAppareils(); renderBesoinsRes(); majBarre(); save(); return; }
+    // Nom libre reconnu : on remplit les champs encore vides avec les valeurs courantes
+    if(DONNEES.suggerer(a.nom) && (!(a.w>0) || !((+a.hJ||0)+(+a.hN||0)>0))) appliquerSuggestion(i, true);
+    else renderAppareils();
+  }
+  if(e.target.classList.contains('w') || e.target.classList.contains('htot')) renderAppareils();
 });
 const depuisPreset = p => ({ nom:p[0], qte:1, w:p[1], hJ:p[2], hN:p[3], dem:p[4], ponctuel:p[5], dc12:p[6] });
 function ajouterAppareil(){
@@ -200,7 +267,7 @@ function ajouterAppareil(){
   const l = document.querySelectorAll('#listeAp .des'); l[l.length-1]?.focus();
 }
 function supprimerAppareil(i){ S.appareils.splice(i,1); renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
-function setAp(i,k,v){ S.appareils[i][k] = v; renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
+function setAp(i,k,v){ S.appareils[i][k] = v; S.appareils[i].manuel = true; renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
 
 function ouvrirPresets(){
   openSheet(`<div class="shh"><b>Appareils courants</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
@@ -243,7 +310,7 @@ function initSysteme(){
   chips('chV', [['auto','Automatique'],[12,'12 V'],[24,'24 V'],[48,'48 V']], 'vsys');
   $('chSecours').innerHTML = [[false,'Aucun'],[true,'Réseau SNE ou groupe']].map(([v,t])=>`<button class="chip ${!!P.reseau===v?'on':''}" onclick="setParam('reseau',${v})">${t}</button>`).join('');
   $('boxCoupure').style.display = P.reseau ? 'block' : 'none';
-  $('pCoupure').value = P.coupure; $('pLpv').value = P.lPv; $('pLbat').value = P.lBat; $('pLac').value = P.lAc; $('pHg').value = P.heuresGroupe||8;
+  $('pCoupure').value = P.coupure; $('pLpv').value = P.lPv; $('pLbat').value = P.lBat; $('pLac').value = P.lAc; $('pHg').value = P.heuresGroupe > 0 ? P.heuresGroupe : ''; $('pHg').placeholder = heuresGroupeSuggere() + ' h (suggéré)';
   $('pPous').value = Math.round(P.poussiere*100); $('pMarge').value = Math.round(P.marge*100); $('pSimul').value = Math.round(P.simul*100);
   renderResultats();
 }
@@ -361,7 +428,7 @@ function renderEco(r){
       <div class="legende"><span><i class="k-solaire"></i>Solaire</span><span><i class="k-groupe"></i>Groupe électrogène</span><span class="muted">millions de F CFA cumulés, par année</span></div>`;
   }
   box.innerHTML = `<h2>Comparaison avec un groupe électrogène</h2>
-    <p class="muted small" style="margin:0 0 8px">Même consommation fournie par un groupe ${e.carbu==='essence'?'à essence':'diesel'} de ${String(e.kva).replace('.',',')} kVA tournant ${S.params.heuresGroupe||8} h par jour.</p>
+    <p class="muted small" style="margin:0 0 8px">Même consommation fournie par un groupe ${e.carbu==='essence'?'à essence':'diesel'} de ${String(e.kva).replace('.',',')} kVA tournant ${heuresGroupe()} h par jour.</p>
     <div class="bignum"><div><small>Carburant</small><b>${f1(e.litresJour)} L/jour</b></div><div><small>Coût carburant</small><b>${fmt(Math.round(e.carburantAn/1000)*1000)} F/an</b></div>
       <div><small>Durée de vie des batteries</small><b>≈ ${f1(e.vieBatt)} ans</b></div><div><small>CO₂ évité</small><b>${f1(e.co2An/1000)} t/an</b></div></div>
     ${graph}
@@ -474,13 +541,29 @@ function renderMateriel(){
     }).join('')}`;
 }
 let editMat = null;
+/* Valeurs typiques proposées dans les fiches : quand on change la puissance d'un panneau, la capacité d'une
+   batterie…, les caractéristiques qui en dépendent sont recalculées, tant que l'utilisateur ne les a pas saisies. */
+const DEPENDANCES = {
+  panneau: e => specPanneau(e.w||0),
+  batterie: e => specBatterie(e.tech, e.v||12, e.ah||100),
+  convertisseur: e => specConvertisseur(e.w||1000, e.onde),
+  hybride: e => DONNEES.specHybride(e.w||3000, e.v||24),
+  regulateur: e => DONNEES.specRegulateur(e.techno, e.a||30)
+};
+const PILOTES = { panneau:['w'], batterie:['v','ah'], convertisseur:['w'], hybride:['w'], regulateur:['a'] };
+function proposerDependants(){
+  const e = editMat, f = DEPENDANCES[e.type]; if(!f || !e._auto) return;
+  const s = f(e);
+  for(const k in s) if(e._auto.includes(k)){ e[k] = s[k]; const el = $('em_'+k); if(el) el.value = s[k]; }
+}
+function champsAuto(type){ const f = DEPENDANCES[type]; return f ? Object.keys(f({ ...DEFAUTS_TYPE[type]() })) : []; }
 function ouvrirMateriel(id){
   const m = id ? materiel.find(x=>x.id===id) : null;
-  editMat = m ? JSON.parse(JSON.stringify(m)) : { id:null, type:'panneau', nom:'', prix:0, w:450, ...specPanneau(450) };
+  editMat = m ? { ...JSON.parse(JSON.stringify(m)), _auto:[] } : { id:null, type:'panneau', nom:'', prix:0, w:450, ...specPanneau(450), _auto: champsAuto('panneau') };
   openSheet(`<div class="shh"><b>${m?'Modifier l\'article':'Nouvel article'}</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
     ${m?'':`<label style="margin-top:0">Type</label><div class="chips" id="emType"></div>`}
     <div id="emChamps"></div>
-    <p class="muted small">Recopiez les valeurs de la fiche technique : le calcul en dépend directement.</p>
+    <p class="muted small">Les valeurs en <i>italique</i> sont des valeurs typiques proposées d'après ce que vous avez saisi. Remplacez-les par celles de la fiche technique : le calcul en dépend directement.</p>
     <button class="btn" style="margin-top:14px" onclick="enregistrerMateriel()">💾 Enregistrer</button>
     ${m?`<button class="btn danger" style="margin-top:8px" onclick="supprimerMateriel('${m.id}')">🗑 Supprimer</button>`:''}`);
   renderChampsMat();
@@ -491,8 +574,8 @@ const DEFAUTS_TYPE = {
   hybride: () => ({ w:3500, v:24, pvMax:4000, vocMax:500, mpptMin:120, mpptMax:450, iCharge:100, idle:40, surge:2, eta:0.92 }),
   cable: () => ({ usage:'dc', section:16 }), protection: () => ({ genre:'fusible_dc', calibre:100, vmax:0 }), autre: () => ({ auto:'non' })
 };
-function changerType(t){ lireChampsMat(); editMat = { id:null, type:t, nom:'', prix:editMat.prix||0, ...DEFAUTS_TYPE[t]() }; renderChampsMat(); }
-function choixEdit(k, v){ lireChampsMat(); editMat[k] = v; if(k==='tech') Object.assign(editMat, specBatterie(v, editMat.v, editMat.ah)); renderChampsMat(); }
+function changerType(t){ lireChampsMat(); editMat = { id:null, type:t, nom:'', prix:editMat.prix||0, ...DEFAUTS_TYPE[t](), _auto: champsAuto(t) }; renderChampsMat(); }
+function choixEdit(k, v){ lireChampsMat(); editMat[k] = v; renderChampsMat(); proposerDependants(); renderChampsMat(); }
 function basculerTension(v){ lireChampsMat(); const t = new Set(editMat.tensions||[]); t.has(v) ? t.delete(v) : t.add(v); editMat.tensions = [...t].sort((a,b)=>a-b); renderChampsMat(); }
 function renderChampsMat(){
   const e = editMat, chip = (k, v, t) => `<button class="chip ${e[k]===v?'on':''}" onclick="choixEdit('${k}',${typeof v==='string'?`'${v}'`:v})">${t}</button>`;
@@ -508,11 +591,18 @@ function renderChampsMat(){
   if(e.type==='autre') h += `<label>Ajout automatique au devis</label><div class="chips">${[['non','Non'],['un','1 fois'],['panneaux','× panneaux'],['batteries','× batteries']].map(([v,t])=>chip('auto',v,t)).join('')}</div>`;
   const ch = CHAMPS[e.type] || [];
   for(let i=0;i<ch.length;i+=2){
-    h += '<div class="row">' + ch.slice(i,i+2).map(([k,l,s])=>`<div><label>${esc(l)}</label><input id="em_${k}" type="number" inputmode="decimal" step="${s}" value="${e[k]??''}" /></div>`).join('') + '</div>';
+    h += '<div class="row">' + ch.slice(i,i+2).map(([k,l,s])=>`<div><label>${esc(l)}</label><input id="em_${k}" class="${(e._auto||[]).includes(k)?'auto':''}" type="number" inputmode="decimal" step="${s}" value="${e[k]??''}" /></div>`).join('') + '</div>';
   }
   h += `<label>Prix unitaire (F CFA${e.type==='cable'?' par mètre':''})</label><input id="emPrix" type="number" inputmode="decimal" value="${e.prix||''}" placeholder="0" />`;
   $('emChamps').innerHTML = h;
 }
+// Saisie dans une fiche : un champ « pilote » recalcule les valeurs proposées ; un champ modifié à la main n'est plus recalculé
+document.addEventListener('input', ev => {
+  const t = ev.target; if(!editMat || !t.id || !t.id.startsWith('em_') || !$('emChamps')?.contains(t)) return;
+  const k = t.id.slice(3);
+  if((PILOTES[editMat.type]||[]).includes(k)){ lireChampsMat(); proposerDependants(); }
+  else if(editMat._auto && editMat._auto.includes(k)){ editMat._auto = editMat._auto.filter(x => x!==k); t.classList.remove('auto'); }
+});
 function lireChampsMat(){
   const e = editMat;
   if($('emNom')) e.nom = $('emNom').value.trim();
@@ -529,6 +619,7 @@ function enregistrerMateriel(){
   if(e.type==='panneau' && !(e.vmp < e.voc && e.imp < e.isc)) return toast('Il faut Vmp < Voc et Imp < Isc');
   if(e.type==='panneau'){ if(e.bVoc===undefined) e.bVoc = -0.28; if(e.gP===undefined) e.gP = -0.36; }
   if(!e.nom) e.nom = nomAuto(e);
+  delete e._auto;
   if(e.id){ const i = materiel.findIndex(m=>m.id===e.id); materiel[i] = e; } else { e.id = uid('m'); materiel.push(e); }
   ecrire(K.mat, materiel); versionMat++; renderMateriel(); closeSheet(); toast('Article enregistré ✅');
 }

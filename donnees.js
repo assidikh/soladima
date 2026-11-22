@@ -105,7 +105,73 @@ function materielParDefaut(){
   return L;
 }
 
-const API = { PRESETS, specPanneau, specBatterie, specConvertisseur, materielParDefaut };
+/* ------------------------------------------------------------------
+   Suggestions de valeurs d'après le nom saisi par l'utilisateur.
+   [motif, catégorie, puissance W, heures de jour, heures de nuit, démarrage, ponctuel, existe en 12 V]
+   L'ordre compte : le premier motif reconnu l'emporte (« clim inverter » avant « clim »).
+   ------------------------------------------------------------------ */
+const CATEGORIES = [
+  [/clim.*inverter|inverter.*clim|split.*inverter/i, 'climatiseur inverter', 800, 4, 4, 1.3, false, false],
+  [/clim|split|air ?cond/i, 'climatiseur', 1000, 4, 4, 5, false, false],
+  [/cong[eé]l/i, 'congélateur', 200, 6, 4, 5, false, false],
+  [/frigo|r[eé]frig|frigidaire/i, 'réfrigérateur', 150, 5, 3, 5, false, false],
+  [/fontaine|distributeur.*eau/i, 'fontaine à eau', 100, 5, 3, 5, false, false],
+  [/pompe|surpresseur|forage|moteur/i, 'pompe', 750, 1, 0, 3, true, false],
+  [/machine.*laver|lave.?linge/i, 'machine à laver', 500, 1, 0, 3, true, false],
+  [/mixeur|blender|robot|moulin/i, 'mixeur', 300, 0.3, 0, 3, true, false],
+  [/fer\b|fer [àa] repasser|repass/i, 'fer à repasser', 1000, 0.5, 0, 1, true, false],
+  [/bouilloire|chauffe.?eau|thermo/i, 'bouilloire', 1500, 0.3, 0, 1, true, false],
+  [/micro.?onde/i, 'micro-ondes', 1500, 0.3, 0, 1, true, false],
+  [/s[eè]che.?cheveux|tondeuse|coiff/i, 'sèche-cheveux', 1200, 0.3, 0, 1, true, false],
+  [/portail/i, 'portail motorisé', 300, 0.2, 0, 3, true, false],
+  [/imprim|photocop/i, 'imprimante', 300, 0.5, 0, 1, true, false],
+  [/ventil.*12|ventil.*dc/i, 'ventilateur 12 V', 20, 4, 6, 1, false, true],
+  [/ventil|brasseur/i, 'ventilateur', 60, 4, 6, 1, false, false],
+  [/t[eé]l[eé]|tv|t[eé]l[eé]viseur/i, 'télévision', 60, 2, 4, 1, false, true],
+  [/d[eé]codeur|parabole|canal/i, 'décodeur', 15, 2, 4, 1, false, true],
+  [/radio|hi.?fi|chaîne|chaine|sono|enceinte/i, 'radio', 30, 2, 2, 1, false, true],
+  [/ordinateur.*bureau|\bpc\b|unit[eé] centrale|desktop/i, 'ordinateur de bureau', 150, 6, 0, 1, false, false],
+  [/ordinateur|portable|laptop/i, 'ordinateur portable', 65, 4, 1, 1, false, false],
+  [/chargeur|t[eé]l[eé]phone|smartphone/i, 'chargeur de téléphone', 10, 1, 2, 1, false, true],
+  [/box|routeur|wi.?fi|modem/i, 'box Internet', 12, 12, 12, 1, false, true],
+  [/cam[eé]ra|surveillance|alarme/i, 'caméra', 10, 12, 12, 1, false, true],
+  [/projecteur|ext[eé]rieur|lampadaire/i, 'éclairage extérieur', 20, 0, 11, 1, false, true],
+  [/lampe|ampoule|led|n[eé]on|tube|[eé]clairage|lumi[eè]re/i, 'éclairage', 10, 0, 5, 1, false, true]
+];
+// Puissance lue dans le nom : « Lampe 15 W », « clim 1,5 CV », « TV 43 pouces »
+function puissanceDansNom(nom){
+  const s = String(nom||'').replace(',', '.');
+  let m = s.match(/(\d+(?:\.\d+)?)\s*(kw|w)\b/i);
+  if(m) return Math.round(parseFloat(m[1]) * (m[2].toLowerCase()==='kw' ? 1000 : 1));
+  m = s.match(/(\d+(?:\.\d+)?)\s*cv\b/i);
+  if(m) return Math.round(parseFloat(m[1]) * (/inverter/i.test(s) ? 650 : 850));      // 1 CV ≈ 850 W absorbés (classique)
+  m = s.match(/(\d+)\s*(pouces|")/i);
+  if(m && /t[eé]l[eé]|tv/i.test(s)) return Math.round(Math.max(30, +m[1]*1.8));
+  return 0;
+}
+// Suggestion complète pour un appareil : null si le nom n'est pas reconnu
+function suggerer(nom){
+  const s = String(nom||'').trim(); if(!s) return null;
+  const c = CATEGORIES.find(x => x[0].test(s)); if(!c) return null;
+  const w = puissanceDansNom(s) || c[2];
+  return { categorie:c[1], w, hJ:c[3], hN:c[4], dem:c[5], ponctuel:c[6], dc12:c[7] && w <= 120 };
+}
+
+/* Caractéristiques typiques d'un onduleur hybride, d'après le modèle du catalogue le plus proche */
+function specHybride(w, v){
+  const L = materielParDefaut().filter(m => m.type==='hybride');
+  const meme = L.filter(m => m.v===v); const pool = meme.length ? meme : L;
+  const p = pool.reduce((a,b) => Math.abs(b.w-w) < Math.abs(a.w-w) ? b : a);
+  const k = w / p.w;
+  return { pvMax: Math.round(p.pvMax*k/100)*100, vocMax:p.vocMax, mpptMin:p.mpptMin, mpptMax:p.mpptMax,
+           iCharge: Math.round(p.iCharge*Math.min(1.5,Math.max(0.5,k))/10)*10, idle: Math.round(p.idle*Math.sqrt(k)), surge:p.surge, eta:p.eta };
+}
+function specRegulateur(techno, a){
+  return techno==='pwm' ? { vocMax:50, tensions:[12,24] }
+       : { vocMax: a<=40 ? 100 : a<=80 ? 150 : 250, tensions: a<=40 ? [12,24] : [12,24,48] };
+}
+
+const API = { PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
 G.DONNEES = API;
 if(typeof module==='object' && module.exports) module.exports = API;
 })(typeof globalThis!=='undefined' ? globalThis : this);

@@ -647,10 +647,10 @@ function iconeMat(m){
 const vf = x => String(x).replace('.', ',');
 /* Photos : celle de l'installateur si elle existe, sinon la photo libre par défaut (Wikimedia Commons) */
 function photoMat(m){ if(m.photo) return { src:m.photo, perso:true }; const k = DONNEES.cleImage(m), i = k && DONNEES.IMAGES[k]; return i ? { src:i.fichier, ...i } : null; }
-function vignette(m){ const p = photoMat(m); return p ? `<img class="vig" src="${p.src}" alt="" loading="lazy" />` : `<span class="icm">${iconeMat(m)}</span>`; }
+function vignette(m){ const p = photoMat(m); return p ? `<img class="vig" src="${p.src}" alt="" width="46" height="46" loading="lazy" decoding="async" />` : `<span class="icm">${iconeMat(m)}</span>`; }
 function figurePhoto(m){
   const p = photoMat(m); if(!p) return '';
-  return `<figure class="photo"><img src="${p.src}" alt="${esc(m.nom)}" loading="lazy" /><figcaption>${p.perso ? 'Photo de votre article'
+  return `<figure class="photo"><img src="${p.src}" alt="${esc(m.nom)}" loading="lazy" decoding="async" /><figcaption>${p.perso ? 'Photo de votre article'
     : `Photo d'illustration : ${esc(p.auteur)} · ${esc(p.licence)} · <a href="${p.source}" target="_blank" rel="noopener">Wikimedia Commons</a>`}</figcaption></figure>`;
 }
 function descriptionMat(m){

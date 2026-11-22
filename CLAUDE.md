@@ -94,6 +94,7 @@ données d'un autre. À préserver :
 - Le service worker sert les fichiers depuis son cache : dans Chrome, DevTools →
   *Application* → *Service workers*, cocher **Update on reload** pendant le
   développement, sinon les modifications n'apparaissent pas.
+- **Photos** : servies depuis un cache séparé (`VERSION_IMAGES` dans `sw.js`), gardé d'une version à l'autre. Toute nouvelle photo doit être ajoutée à la liste `IMAGES` ; si une photo est modifiée, incrémenter `VERSION_IMAGES`.
 - **À chaque mise en ligne**, incrémenter `VERSION` dans `sw.js` (v1 → v2…),
   sinon les téléphones gardent l'ancienne version.
 - Tester à la largeur d'un téléphone (DevTools → mode appareil) : l'application

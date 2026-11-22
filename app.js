@@ -99,7 +99,16 @@ function migrerEtude(d){
   d.devis = { noteCalcul:true, ...(d.devis||{}) };
   d.v = 2; return d;
 }
-function save(){ nonEnregistre = true; ecrire(K.etat, S); }
+function save(){ nonEnregistre = true; ecrire(K.etat, S); clearTimeout(save._t); save._t = setTimeout(sauverClient, 300); }
+// Chaque client est enregistré automatiquement dans la liste dès qu'il contient quelque chose
+function sauverClient(){
+  if(!S || dossierVide()) return;
+  if(!S.id){ S.id = uid('d'); ecrire(K.etat, S); }
+  const copie = JSON.parse(JSON.stringify(S)); copie.maj = Date.now();
+  const i = dossiers.findIndex(d => d.id===S.id);
+  if(i>=0) dossiers[i] = copie; else dossiers.unshift(copie);
+  ecrire(K.dos, dossiers); nonEnregistre = false;
+}
 function chargerEtude(d){
   S = migrerEtude(JSON.parse(JSON.stringify(d)));
   S.params = { ...paramsDefaut(), ...(S.params||{}) };
@@ -135,14 +144,24 @@ const optionsEco = () => ({ heuresGroupe: heuresGroupe(), prixEssence: reglages.
 /* ============================================================
    Navigation
    ============================================================ */
-const TITRES = { besoins:'Besoins énergétiques', systeme:'Dimensionnement', devis:'Devis', materiel:'Mon matériel', plus:'Dossiers et réglages' };
+const TITRES = { accueil:'Accueil', clients:'Mes clients', client:'Fiche client', besoins:'Besoins énergétiques', systeme:'Dimensionnement', devis:'Devis', materiel:'Mon matériel', plus:'Réglages et à propos' };
+const VUES_CLIENT = ['client','besoins','systeme','devis'];
+function majTitre(){
+  $('titre').textContent = VUES_CLIENT.includes(vueCourante) ? (S.client.trim() || 'Nouveau client') + ' · ' + TITRES[vueCourante] : TITRES[vueCourante];
+}
 function vue(n){
   vueCourante = n;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('v-'+n).classList.add('active');
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.v===n));
-  $('titre').textContent = TITRES[n];
-  if(n==='besoins') renderBesoinsRes();
+  const dansClient = VUES_CLIENT.includes(n);
+  $('sousnav').classList.toggle('on', dansClient);
+  document.querySelectorAll('#sousnav .onglets button').forEach(b=>b.classList.toggle('active', b.dataset.v===n));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.v===(dansClient ? 'clients' : n)));
+  majTitre();
+  if(n==='accueil') renderAccueil();
+  if(n==='clients') renderDossiers();
+  if(n==='client') renderFiche();
+  if(n==='besoins'){ renderAppareils(); renderBesoinsRes(); }
   if(n==='systeme') initSysteme();
   if(n==='devis') initDevis();
   if(n==='materiel') renderMateriel();
@@ -151,7 +170,9 @@ function vue(n){
 }
 function majBarre(){
   const b = $('actionbar'); b.style.display = 'flex';
-  if(vueCourante==='besoins'){
+  if(vueCourante==='client'){
+    b.innerHTML = `<div class="info"><small>Étape suivante</small><b>Les appareils du client</b></div><button class="btn go" onclick="vue('besoins')">Besoins ›</button>`;
+  } else if(vueCourante==='besoins'){
     const r = calculer();
     b.innerHTML = `<div class="info"><small>Consommation par jour</small><b>${r.vide?'—':f2(r.besoins.E/1000)+' kWh'}</b></div><button class="btn go" onclick="vue('systeme')">Dimensionner ›</button>`;
   } else if(vueCourante==='systeme'){
@@ -167,11 +188,22 @@ function majBarre(){
    ============================================================ */
 const DEMARRAGES = [[1,'Normal'],[1.3,'Inverter ×1,3'],[3,'Moteur ×3'],[5,'Compresseur ×5']];
 function majDatalistAp(){ $('dlAp').innerHTML = PRESETS.map(p=>`<option value="${esc(p[0])}">`).join(''); }
+let apOuvert = -1;                   // appareil déplié pour modification (-1 : tous repliés)
+const whAp = a => (+a.qte||0)*(+a.w||0)*((+a.hJ||0)+(+a.hN||0));
+function ouvrirAp(i){ apOuvert = apOuvert===i ? -1 : i; renderAppareils(); if(apOuvert>=0) document.querySelector(`#listeAp [data-i="${i}"]`)?.scrollIntoView({block:'nearest'}); }
+function ligneAp(a, i){
+  const dem = (a.dem||1) > 1.05 ? ' · ' + (DEMARRAGES.find(x=>Math.abs(x[0]-a.dem)<0.01)?.[1]||'').toLowerCase() : '';
+  const alerte = (() => { const e = ecartsSuggestion(a); return e && e.diff.length ? ' 💡' : ''; })();
+  return `<div class="ligne-ap" data-i="${i}" onclick="ouvrirAp(${i})">
+    <div class="info"><b>${esc(a.nom||'Appareil sans nom')}${alerte}</b><small>${fmt(a.qte)} × ${fmt(a.w)} W · ☀ ${hFr(a.hJ||0)} · 🌙 ${hFr(a.hN||0)}${a.ponctuel?' · ponctuel':''}${dem}</small></div>
+    <div class="wh2">${fmt(whAp(a))} Wh/j</div><span class="chev">›</span></div>`;
+}
 function renderAppareils(){
   const box = $('listeAp');
   if(!S.appareils.length){ box.innerHTML = '<div class="empty">Aucun appareil.<br>Appuyez sur « Appareils courants » pour choisir vite, ou ajoutez-en un à la main.</div>'; return; }
-  box.innerHTML = S.appareils.map((a,i)=>`
+  box.innerHTML = S.appareils.map((a,i)=> i!==apOuvert ? ligneAp(a,i) : `
     <div class="ap" data-i="${i}">
+      <div class="tete" onclick="ouvrirAp(${i})"><span>Modifier l'appareil</span><span>Replier ▴</span></div>
       <label style="margin-top:0">Appareil</label>
       <input type="text" class="des" list="dlAp" value="${esc(a.nom)}" placeholder="Ex : Réfrigérateur" />
       <div class="row">
@@ -263,10 +295,10 @@ $('listeAp').addEventListener('change', e=>{
 const depuisPreset = p => ({ nom:p[0], qte:1, w:p[1], hJ:p[2], hN:p[3], dem:p[4], ponctuel:p[5], dc12:p[6] });
 function ajouterAppareil(){
   S.appareils.push({ nom:'', qte:1, w:0, hJ:0, hN:0, dem:1, ponctuel:false, dc12:false });
-  renderAppareils(); renderBesoinsRes(); majBarre(); save();
+  apOuvert = S.appareils.length-1; renderAppareils(); renderBesoinsRes(); majBarre(); save();
   const l = document.querySelectorAll('#listeAp .des'); l[l.length-1]?.focus();
 }
-function supprimerAppareil(i){ S.appareils.splice(i,1); renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
+function supprimerAppareil(i){ S.appareils.splice(i,1); apOuvert = -1; renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
 function setAp(i,k,v){ S.appareils[i][k] = v; S.appareils[i].manuel = true; renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
 
 function ouvrirPresets(){
@@ -741,35 +773,70 @@ async function genererPDF(){
 /* ============================================================
    DOSSIERS, RÉGLAGES, SAUVEGARDE
    ============================================================ */
-function enregistrerDossier(){
-  if(!S.client.trim() && !S.appareils.length) return toast('Le dossier est vide');
-  const copie = JSON.parse(JSON.stringify(S)); copie.maj = Date.now();
-  const i = S.id ? dossiers.findIndex(d=>d.id===S.id) : -1;
-  if(i>=0) dossiers[i] = copie; else { S.id = uid('d'); copie.id = S.id; dossiers.unshift(copie); }
-  if(ecrire(K.dos, dossiers)){ ecrire(K.etat, S); nonEnregistre = false; toast(i>=0 ? 'Dossier mis à jour ✅' : 'Dossier enregistré ✅'); if(vueCourante==='plus') renderDossiers(); }
-}
 function dossierVide(){ return !S.client.trim() && !S.appareils.length && !S.devis.lines.length; }
-function nouveauDossier(){
-  if(!dossierVide() && nonEnregistre && !confirm('Commencer un nouveau dossier ? Les modifications non enregistrées du dossier en cours seront perdues.')) return;
-  chargerEtude(nouvelleEtude()); vue('besoins');
+function nouveauClient(){
+  sauverClient(); apOuvert = -1;
+  chargerEtude(nouvelleEtude()); vue('client'); setTimeout(()=>$('cNom').focus(), 50);
 }
+// Dimensionnement rapide : on passe directement aux appareils, le nom du client pourra être ajouté ensuite
+function dimensionnementRapide(){ sauverClient(); apOuvert = -1; chargerEtude(nouvelleEtude()); vue('besoins'); }
 const energieDossier = d => (d.appareils||[]).reduce((s,a)=>s+a.qte*a.w*(a.hJ!==undefined ? (+a.hJ||0)+(+a.hN||0) : (+a.h||0)),0);
 function renderDossiers(){
   const q = ($('rechDos')?.value||'').toLowerCase();
   const L = [...dossiers].sort((a,b)=>(b.maj||0)-(a.maj||0)).filter(d=>((d.client||'')+' '+(d.lieu||'')+' '+(d.num||'')).toLowerCase().includes(q));
-  $('listeDos').innerHTML = L.length ? L.map(d=>{
-    const e = energieDossier(d), tot = ((d.devis||{}).lines||[]).reduce((s,l)=>s+l.qte*l.pu,0);
-    return `<div class="art" onclick="ouvrirDossier('${d.id}')"><div class="info"><b>${esc(d.client||'Sans nom')}${d.id===S.id?'<span class="badge ok">En cours</span>':''}</b><small>${esc(d.num||'')} · ${esc(dCourt(d.date))}${d.lieu?' · '+esc(d.lieu):''} · ${f2(e/1000)} kWh/j</small></div><div class="tt">${tot?fmt(tot):''}</div><button class="iconbtn" onclick="event.stopPropagation();supprimerDossier('${d.id}')" aria-label="Supprimer">🗑</button></div>`;
-  }).join('') : '<div class="empty">Aucun dossier enregistré.<br>Appuyez sur 💾 en haut de l\'écran pour enregistrer le dossier en cours.</div>';
+  $('listeDos').innerHTML = L.length ? L.map(d => `<div class="art" onclick="ouvrirDossier('${d.id}')">
+      <div class="info"><b>${esc(d.client||'Sans nom')}</b><small>${esc([d.lieu, (d.params||{}).ville].filter(Boolean).join(', ') || dCourt(d.date))}</small></div>
+      <span class="chev muted">›</span></div>`).join('')
+    : `<div class="empty">${q ? 'Aucun client trouvé.' : 'Aucun client pour l\'instant.<br>Appuyez sur « Nouveau client » pour commencer.'}</div>`;
 }
 function ouvrirDossier(id){
   const d = dossiers.find(x=>x.id===id); if(!d) return;
   if(d.id!==S.id && !dossierVide() && nonEnregistre && !confirm('Ouvrir ce dossier ? Les modifications non enregistrées du dossier en cours seront perdues.')) return;
-  chargerEtude(d); vue('besoins'); toast('Dossier ouvert ✅');
+  apOuvert = -1; chargerEtude(d); vue('client');
 }
-function supprimerDossier(id){
-  const d = dossiers.find(x=>x.id===id); if(!d || !confirm('Supprimer le dossier de « '+(d.client||'Sans nom')+' » ?')) return;
-  dossiers = dossiers.filter(x=>x.id!==id); ecrire(K.dos, dossiers); if(S.id===id){ S.id = null; ecrire(K.etat, S); } renderDossiers();
+function supprimerDossier(id, depuisFiche){
+  const d = dossiers.find(x=>x.id===id);
+  const nom = d ? (d.client||'Sans nom') : (S.client||'ce client');
+  if(!confirm('Supprimer le client « '+nom+' » et son devis ?')) return;
+  dossiers = dossiers.filter(x=>x.id!==id); ecrire(K.dos, dossiers);
+  if(!id || S.id===id){ clearTimeout(save._t); chargerEtude(nouvelleEtude()); }
+  if(depuisFiche) vue('clients'); else renderDossiers();
+  toast('Client supprimé');
+}
+// Fiche du client : résumé de ce qui a été fait, et accès aux étapes
+function renderFiche(){
+  remplirVilles();
+  const r = calculer(), a = r.choisie, t = totalLignes();
+  const l = (k, v, go) => `<div class="resume-l" ${go?`onclick="vue('${go}')" style="cursor:pointer"`:''}><span>${k}</span><span><b>${v}</b>${go?' ›':''}</span></div>`;
+  $('ficheResume').innerHTML = `<h2>Résumé</h2>
+    ${l('Devis', esc(S.num) + ' du ' + esc(dCourt(S.date)))}
+    ${l('Appareils', S.appareils.length ? S.appareils.length + ' · ' + (r.vide ? '—' : f2(r.besoins.E/1000) + ' kWh/jour') : 'à saisir', 'besoins')}
+    ${l('Solution', a ? esc(a.nom) + ' · ' + f2(a.pv.Wc/1000) + ' kWc' : '—', 'systeme')}
+    ${l('Montant du devis', t ? fmt(totalNet()) + ' F CFA' : '—', 'devis')}`;
+}
+// Accueil : bouton d'installation (navigateur seulement) et derniers clients
+let invitationInstall = null;
+const estInstallee = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); invitationInstall = e; if(vueCourante==='accueil') renderAccueil(); });
+window.addEventListener('appinstalled', () => { invitationInstall = null; toast('SolaDima est installée ✅'); if(vueCourante==='accueil') renderAccueil(); });
+async function installer(){
+  if(invitationInstall){
+    invitationInstall.prompt();
+    const c = await invitationInstall.userChoice.catch(()=>null);
+    if(c && c.outcome==='accepted') invitationInstall = null;
+    renderAccueil(); return;
+  }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  openSheet(`<div class="shh"><b>Installer SolaDima</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
+    ${ios ? '<p>Dans <b>Safari</b> : touchez le bouton <b>Partager</b> (carré avec une flèche), puis <b>« Sur l\'écran d\'accueil »</b>.</p>'
+           : '<p><b>Sur Android (Chrome)</b> : touchez le menu <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.</p><p><b>Sur ordinateur (Chrome, Edge)</b> : cliquez sur l\'icône d\'installation à droite de la barre d\'adresse.</p>'}
+    <p class="muted small">Une fois installée, SolaDima s'ouvre comme une application et fonctionne sans internet.</p>`);
+}
+function renderAccueil(){
+  $('boxInstall').innerHTML = estInstallee() ? '' : `<div class="install"><div class="tx"><b>📲 Installez SolaDima</b>Sur votre téléphone, comme une vraie application. Elle marche aussi sans internet.</div><button onclick="installer()">Installer</button></div>`;
+  const L = [...dossiers].sort((a,b)=>(b.maj||0)-(a.maj||0)).slice(0,3);
+  $('accRecents').style.display = L.length ? 'block' : 'none';
+  $('accRecents').innerHTML = '<h2>Derniers clients</h2>' + L.map(d => `<div class="art" onclick="ouvrirDossier('${d.id}')"><div class="info"><b>${esc(d.client||'Sans nom')}</b><small>${esc([d.lieu, (d.params||{}).ville].filter(Boolean).join(', '))}</small></div><span class="chev muted">›</span></div>`).join('');
 }
 function initPlus(){
   $('rNom').value = reglages.nom; $('rAdresse').value = reglages.adresse; $('rPied').value = reglages.pied; $('rNote').value = reglages.note; $('rIndicatif').value = reglages.indicatif; majLogo();
@@ -777,7 +844,6 @@ function initPlus(){
   $('dfTech').value = reglages.tech; $('dfAut').value = String(reglages.aut);
   $('dfPous').value = Math.round(reglages.poussiere*100); $('dfMarge').value = Math.round(reglages.marge*100); $('dfSimul').value = Math.round(reglages.simul*100);
   $('ePrixEss').value = reglages.prixEssence; $('ePrixGas').value = reglages.prixGasoil; $('ePrixGroupe').value = reglages.prixGroupeKva||''; $('eEntretien').value = reglages.entretienHeure; $('eAppoint').value = reglages.prixKwhAppoint||'';
-  renderDossiers();
 }
 function sauverReglages(){ reglages.nom = $('rNom').value; reglages.adresse = $('rAdresse').value; reglages.pied = $('rPied').value; reglages.note = $('rNote').value; reglages.indicatif = $('rIndicatif').value.replace(/\D/g,''); ecrire(K.reg, reglages); }
 function majDefaut(k,val,div){ const n = typeof val==='string' && isNaN(parseFloat(val)) ? val : parseFloat(val)/(div||1); if(typeof n==='number' && (isNaN(n) || n<0)) return; reglages[k] = n; ecrire(K.reg, reglages); }
@@ -823,8 +889,11 @@ function importerSauvegarde(e){
   majDatalistAp();
   const e = lire(K.etat, null);
   chargerEtude(e && Array.isArray(e.appareils) ? e : nouvelleEtude());
+  sauverClient();                                                // le client en cours figure dans la liste
   const h = location.hash.slice(1);                              // ex. index.html#systeme ouvre directement un onglet
-  vue(TITRES[h] ? h : 'besoins');
+  const majHauteur = () => document.documentElement.style.setProperty('--hh', document.querySelector('header').offsetHeight + 'px');
+  majHauteur(); window.addEventListener('resize', majHauteur);
+  vue(TITRES[h] ? h : 'accueil');
 })();
 
 /* ---------- Installation / hors ligne (PWA) ---------- */

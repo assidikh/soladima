@@ -45,18 +45,27 @@ fr.onload = () => {
     log(S.appareils[1].hJ === 4 && S.appareils[1].dem === 5, 'frigo « mixte » 8 h → 4 + 4 h, compresseur ×5');
     log(S.appareils[3].dem === 5, 'nom libre « congélateur » migré en compresseur ×5');
     log(S.params.aut === 1, 'réserve choisie par l\'utilisateur conservée (1 jour)');
+    log(d.getElementById('v-accueil').classList.contains('active'), 'l\'application s\'ouvre sur l\'accueil');
+    log(!!d.querySelector('#boxInstall .install'), 'bouton « Installer » affiché dans le navigateur');
+    w.vue('clients');
+    log(d.querySelectorAll('#listeDos .art').length === 1, 'le client en cours figure dans la liste des clients');
+    d.querySelector('#listeDos .art').click();
+    log(d.getElementById('v-client').classList.contains('active') && d.getElementById('sousnav').classList.contains('on'), 'clic sur un client : fiche + onglets Fiche/Besoins/Système/Devis');
     w.vue('besoins');
+    log(d.querySelectorAll('#listeAp .ligne-ap').length === 4 && !d.querySelector('#listeAp .ap'), 'appareils affichés en lignes simples');
+    d.querySelector('#listeAp .ligne-ap').click();
     const carte = d.querySelector('#listeAp .ap[data-i="0"]'), barre = carte.querySelector('.hrep');
+    log(!!carte, 'clic sur une ligne : détails dépliés');
     log(!!barre, 'barre jour/nuit présente');
     barre.value = 3; barre.dispatchEvent(new Event('input', { bubbles:true }));
-    log(S.appareils[0].hN === 3 && S.appareils[0].hJ === 2, 'barre : 5 h réparties en 2 h jour + 3 h nuit');
+    log(w.eval('S').appareils[0].hN === 3 && w.eval('S').appareils[0].hJ === 2, 'barre : 5 h réparties en 2 h jour + 3 h nuit');
     const tot = carte.querySelector('.htot'); tot.value = 10; tot.dispatchEvent(new Event('input', { bubbles:true }));
-    log(S.appareils[0].hJ + S.appareils[0].hN === 10 && S.appareils[0].hN === 6, 'total 10 h : proportion jour/nuit conservée (4 + 6)');
-    w.ajouterAppareil(); const n = S.appareils.length-1, des = d.querySelectorAll('#listeAp .des')[n];
+    log(w.eval('S').appareils[0].hJ + w.eval('S').appareils[0].hN === 10 && w.eval('S').appareils[0].hN === 6, 'total 10 h : proportion jour/nuit conservée (4 + 6)');
+    w.ajouterAppareil(); const n = w.eval('S').appareils.length-1, des = d.querySelector('#listeAp .ap .des');
     des.value = 'Mixeur de jus'; des.dispatchEvent(new Event('input', { bubbles:true })); des.dispatchEvent(new Event('change', { bubbles:true }));
-    log(S.appareils[n].w === 300 && S.appareils[n].ponctuel === true, 'nom libre « Mixeur de jus » : 300 W, ponctuel, proposés');
+    log(w.eval('S').appareils[n].w === 300 && w.eval('S').appareils[n].ponctuel === true, 'nom libre « Mixeur de jus » : 300 W, ponctuel, proposés');
     w.supprimerAppareil(n);
-    for(const v of ['besoins','systeme','devis','materiel','plus']){
+    for(const v of ['accueil','clients','client','besoins','systeme','devis','materiel','plus']){
       w.vue(v);
       log(d.getElementById('v-'+v).classList.contains('active'), 'onglet ' + v + ' affiché');
     }
@@ -84,6 +93,10 @@ fr.onload = () => {
     fw.value = 450; fw.dispatchEvent(new Event('input', { bubbles:true }));
     log(+d.getElementById('em_voc').value === 50.2 && +d.getElementById('em_vmp').value === 41.4, 'valeur saisie à la main conservée, les autres recalculées');
     w.closeSheet();
+    w.nouveauClient();
+    log(w.eval('S').appareils.length === 0 && d.getElementById('v-client').classList.contains('active'), 'nouveau client : fiche vide');
+    w.vue('clients');
+    log(d.querySelectorAll('#listeDos .art').length === 1, 'un client vide n\'encombre pas la liste');
     w.toggleDark(); w.vue('systeme'); w.toggleDark();
     log(erreurs.length === 0, 'aucune erreur JavaScript' + (erreurs.length ? ' : ' + erreurs.join(' | ') : ''));
   }catch(e){ log(false, 'exception : ' + e.message + '\n' + e.stack); }
@@ -96,6 +109,7 @@ fr.onload = () => {
     localStorage.setItem('soladima_materiel_v1', JSON.stringify(L));
     const R = JSON.parse(localStorage.getItem('soladima_reglages_v1')); R.prixGroupeKva = 150000; localStorage.setItem('soladima_reglages_v1', JSON.stringify(R));
   }
+  if(o){ const w = fr.contentWindow, L = w.eval('dossiers'); if(L.length) w.ouvrirDossier(L[0].id); }
   if(o) setTimeout(() => location.href = '../index.html#' + o, 300);
 };
 fr.src = '../index.html';

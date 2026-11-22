@@ -1,6 +1,6 @@
 // Changez VERSION à chaque mise à jour du code de l'application (v1 -> v2 -> v3...).
 // Changez VERSION_IMAGES seulement si une photo du dossier images/ est modifiée ou remplacée.
-const VERSION = 'v10';
+const VERSION = 'v11';
 const VERSION_IMAGES = 'i1';
 const PREFIX = 'soladima-';
 const CACHE = PREFIX + VERSION;                              // code de l'application

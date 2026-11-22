@@ -90,7 +90,8 @@ données d'un autre. À préserver :
 
 ## 4. Développement
 
-- Lancer `node outils/serveur-dev.mjs` puis ouvrir http://localhost:8080 dans Chrome.
+- Lancer `node outils/serveur-dev.mjs`, puis `node outils/ouvrir-chrome.mjs` : fenêtre Chrome de test dédiée qui **réutilise toujours le même onglet** (ne pas ouvrir de nouveaux onglets).
+- **Aucun `git push` sans le signal explicite de l'utilisateur** : commits locaux seulement, puis attendre.
 - Le service worker sert les fichiers depuis son cache : dans Chrome, DevTools →
   *Application* → *Service workers*, cocher **Update on reload** pendant le
   développement, sinon les modifications n'apparaissent pas.

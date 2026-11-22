@@ -381,6 +381,13 @@ function fourchette(a){
   const k = x => fmt(Math.round(x/1000)*1000);
   return `${k(lo)} – ${k(hi)} F CFA`;
 }
+// Article du catalogue correspondant à une protection calculée (même choix que pour le devis)
+function articleProtection(p){
+  return materiel.filter(x => x.type==='protection' && x.genre===p.genre && (x.calibre||0) >= (p.calibre||0) && (!p.vmin || (x.vmax||1e9) >= p.vmin))
+    .sort((a,b) => (a.calibre||0)-(b.calibre||0) || (a.vmax||0)-(b.vmax||0))[0] || { type:'protection', genre:p.genre, calibre:p.calibre };
+}
+// Composants principaux d'une solution, pour ses vignettes
+const composantsArchi = a => [a.pv && a.pv.m, a.bat && a.bat.m, a.hyb && a.hyb.m, a.reg && a.reg.m, a.conv && a.conv.m].filter(Boolean);
 function resumeArchi(a){
   if(!a.faisable) return '';
   const p = [`${a.pv.N} × ${a.pv.m.w} Wc`, `${a.bat.units} batt. (${f2(a.bat.Wh/1000)} kWh)`];
@@ -393,6 +400,7 @@ function renderComparaison(r){
   $('sysComparaison').innerHTML = `<h2>Solutions possibles</h2>
     <p class="muted small" style="margin:0 0 8px">Touchez une solution pour la retenir dans le devis. ${r.choisie && r.choisie.prixComplet ? '' : 'Tant que des prix manquent, le classement utilise des prix indicatifs internes.'}</p>
     ${r.archis.map(a => `<div class="solu ${a.faisable?'':'non'} ${r.choisie===a?'sel':''}" ${a.faisable?`onclick="choisirArchi('${a.id}')"`:''}>
+      ${a.faisable ? `<div class="solu-img">${composantsArchi(a).map(vignette).join('')}</div>` : ''}
       <div class="solu-t"><b>${esc(a.nom)}</b>${a.recommandee?'<span class="badge ok">Recommandée</span>':''}${r.choisie===a?'<span class="badge sel">Retenue</span>':''}</div>
       ${a.faisable ? `<small>${esc(resumeArchi(a))}</small><div class="solu-p">${a.prixComplet?fmt(a.total)+' F CFA':'Prix incomplets'}</div>${a.prixComplet?`<small>Fourchette du marché : ${fourchette(a)}</small>`:''}`
                    : `<small>✖ ${esc(a.raisons.join(' '))}</small>`}
@@ -507,9 +515,9 @@ function renderCables(r){
   if(!a){ box.style.display = 'none'; return; }
   box.innerHTML = `<h2>Câbles et protections</h2>
     <table class="tab"><tr><th>Liaison</th><th class="r">Courant</th><th class="r">Longueur</th><th class="r">Section</th></tr>
-    ${a.cables.map(c=>`<tr><td>${esc(c.lien)}${c.n>1?` (×${c.n})`:''}</td><td class="r">${f1(c.I)} A</td><td class="r">${f1(c.L)} m</td><td class="r"><b>${String(c.S).replace('.',',')} mm²</b><br><small class="muted">${c.m.metal==='aluminium'?'alu':'cuivre'} ${c.m.ame||'souple'}</small></td></tr>`).join('')}</table>
+    ${a.cables.map(c=>`<tr><td><span class="lien-cable">${vignette(c.m)}<span>${esc(c.lien)}</span></span>${c.n>1?` (×${c.n})`:''}</td><td class="r">${f1(c.I)} A</td><td class="r">${f1(c.L)} m</td><td class="r"><b>${String(c.S).replace('.',',')} mm²</b><br><small class="muted">${c.m.metal==='aluminium'?'alu':'cuivre'} ${c.m.ame||'souple'}</small></td></tr>`).join('')}</table>
     <p class="muted small">Côté panneaux et batterie : cuivre souple uniquement. Côté 230 V : le câble le moins cher qui convient, cuivre ou aluminium (section plus grosse en aluminium). Chute de tension limitée à 3 % côté panneaux, 1,5 à 2 % côté batterie ; courant admissible corrigé pour 40 °C. Longueurs aller simple (réglables plus bas).</p>
-    ${a.protections.map(p=>`<div class="res"><div class="ic">🛡️</div><div class="tx"><b>${esc(GENRES[p.genre])}${p.calibre?` ${p.calibre} A`:''}${p.n>1?` × ${p.n}`:''}</b><small>${esc(p.pourquoi)}${p.vmin?` · tension ≥ ${Math.ceil(p.vmin)} V DC`:''}</small></div></div>`).join('')}`;
+    ${a.protections.map(p=>`<div class="res"><div class="ic">${vignette(articleProtection(p))}</div><div class="tx"><b>${esc(GENRES[p.genre])}${p.calibre?` ${p.calibre} A`:''}${p.n>1?` × ${p.n}`:''}</b><small>${esc(p.pourquoi)}${p.vmin?` · tension ≥ ${Math.ceil(p.vmin)} V DC`:''}</small></div></div>`).join('')}`;
 }
 
 /* ---------- Comparaison avec un groupe électrogène ---------- */

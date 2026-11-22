@@ -87,13 +87,13 @@ function materielParDefaut(){
     { w:8000, v:48, pvMax:9000, vocMax:500, mpptMin:120, mpptMax:450, iCharge:150, idle:80, surge:2, eta:0.93 }
   ].forEach(h => L.push({ type:'hybride', ...h }));
   // Câbles (prix au mètre)
-  [4,6].forEach(s => L.push({ type:'cable', usage:'pv', section:s }));
-  [6,10,16,25,35,50,70].forEach(s => L.push({ type:'cable', usage:'dc', section:s }));
+  [4,6,10,16].forEach(s => L.push({ type:'cable', usage:'pv', section:s }));
+  [6,10,16,25,35,50,70,95,120].forEach(s => L.push({ type:'cable', usage:'dc', section:s }));
   [1.5,2.5,4,6].forEach(s => L.push({ type:'cable', usage:'ac', section:s }));
   // Protections
-  [32,63,100,125,160,200,250].forEach(c => L.push({ type:'protection', genre:'fusible_dc', calibre:c }));
+  [16,25,32,40,63,80,100,125,160,200,250,300].forEach(c => L.push({ type:'protection', genre:'fusible_dc', calibre:c }));
   [16,25,32,63].forEach(c => L.push({ type:'protection', genre:'sect_pv', calibre:c, vmax:1000 }));
-  L.push({ type:'protection', genre:'fusible_pv', calibre:15, vmax:1000 });
+  [10,15,20,25].forEach(c => L.push({ type:'protection', genre:'fusible_pv', calibre:c, vmax:1000 }));
   L.push({ type:'protection', genre:'parafoudre_pv', calibre:0, vmax:600 }, { type:'protection', genre:'parafoudre_pv', calibre:0, vmax:1000 });
   [16,25,32,40].forEach(c => L.push({ type:'protection', genre:'disj_ac', calibre:c }));
   L.push({ type:'protection', genre:'terre', calibre:0 });

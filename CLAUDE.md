@@ -15,12 +15,40 @@ PWA de **dimensionnement préliminaire d'un système solaire autonome** (panneau
 batteries, onduleur, régulateur MPPT) et de **création de devis** (PDF, images
 WhatsApp), pour les installateurs de N'Djaména (F CFA, indicatif +235).
 
-- `index.html` : toute l'application (styles, balisage, code). Les bibliothèques
-  jsPDF 2.5.1 et html2canvas y sont **intégrées** pour fonctionner hors ligne ;
-  ne pas les remplacer par des liens CDN.
-- `sw.js` : service worker (cache hors ligne).
+- `index.html` : styles et balisage. Les bibliothèques jsPDF 2.5.1 et
+  html2canvas y sont **intégrées** pour fonctionner hors ligne ; ne pas les
+  remplacer par des liens CDN.
+- `app.js` : interface (onglets, devis, PDF, dossiers, migration des données v1).
+- `calcul.js` : **moteur de dimensionnement**, sans accès à la page, testable
+  seul. Point d'entrée `SolaCalcul.dimensionner(appareils, params, materiel)`.
+- `donnees.js` : appareils courants et catalogue par défaut (valeurs typiques).
+- `climat.js` : **fichier généré** par `outils/generer-climat.mjs` (PVGIS +
+  NASA POWER, 24 villes du Tchad). Ne pas le modifier à la main.
+- `sw.js` : service worker (cache hors ligne) ; la liste `FILES` doit contenir
+  tout fichier ajouté.
 - `manifest.webmanifest`, `icon-192.png`, `icon-512.png` : installation.
-- Logique de calcul : fonction `calculer()` dans `index.html`.
+
+### Méthode de calcul (à préserver)
+
+Bilan énergétique au **mois le plus défavorable** de la ville (PVGIS), avec une
+chaîne de rendements explicite : température des panneaux (PVGIS), poussière,
+câbles, MPPT ou PWM (P ≈ Imp × V batterie), rendement et **consommation à vide**
+de l'onduleur sur 24 h, rendement des batteries, profondeur de décharge,
+vieillissement. Quatre architectures comparées : kit 12 V, régulateur +
+convertisseur, onduleur hybride, hybride + secours. Contrôles : tension des
+chaînes à froid (Voc) et à chaud (Vmp), courants de charge et de décharge des
+batteries, sections de câbles (chute de tension et courant admissible ≥ calibre
+de la protection), protections. Toute constante nouvelle est nommée en tête de
+`calcul.js` avec sa justification.
+
+## 1 bis. Tests — à lancer avant chaque commit
+
+- `node --test tests/` : tests du moteur (doivent tous passer).
+- http://localhost:8080/tests/interface.html : test de l'interface et de la
+  migration des données v1 (doit afficher « 0 échoués »).
+- `node outils/valider-pvgis.mjs` (internet) : simulation horaire PVGIS des
+  systèmes proposés. Critère : ≲ 10 % de jours « batterie vide » au pire mois,
+  ≲ 2 % sur l'année, avec la réserve par défaut (nuit + ½ jour).
 
 ## 3. Données : propres à chaque utilisateur
 

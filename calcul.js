@@ -35,7 +35,7 @@ const CALIBRES_PV = [10,12,15,16,20,25,32];
 // Estimations internes (F CFA) servant UNIQUEMENT à classer les solutions quand un prix manque.
 // Ils incluent la part de pose propre à chaque unité (support et pose d'un panneau, câblage d'un régulateur…).
 const PRIX_INDICATIF = {
-  panneau: m => m.w*(m.w<=220 ? 200 : m.w<=380 ? 140 : 115) + 15000,
+  panneau: m => m.w*(m.w<=220 ? 200 : m.w<=380 ? 140 : 115),
   batterie: m => (m.tech==='lithium'?300:110)*m.v*m.ah + 5000,
   regulateur: m => (m.techno==='pwm'?600:2500)*m.a + 15000, convertisseur: m => (m.onde==='modifie'?50:90)*m.w,
   hybride: m => 110*m.w, cable: m => 150*m.section, protection: () => 8000, autre: () => 0
@@ -44,6 +44,9 @@ const PRIX_INDICATIF = {
 const cls = v => v < 18 ? 12 : (v < 36 ? 24 : 48);
 const sum = a => a.reduce((s,x)=>s+x, 0);
 const vFr = v => String(v).replace('.', ',');
+// Coût de pose propre à chaque panneau ou batterie (supports, cosses…) : articles « autres » ajoutés par panneau / par batterie,
+// ou une estimation si l'utilisateur n'en a pas chiffré. Sans lui, le classement favoriserait les petits panneaux.
+function surcout(mat, auto, defaut){ const p = mat.filter(m => m.type==='autre' && m.auto===auto).reduce((s,m)=>s+(m.prix||0),0); return p > 0 ? p : defaut; }
 const cout = m => (m && m.prix > 0) ? m.prix : (m ? (PRIX_INDICATIF[m.type]||(()=>0))(m) : 0);
 
 function nomAuto(m){
@@ -297,7 +300,7 @@ function avecRegulateur(r, B, P, c, mat, ch, T, V, conv){
     const usable = ch.Ebat + P.aut*ch.Etot, nomReq = usable / (T.dod*T.vieil);
     const bat = choisirBatteries(mat, P.tech, V, nomReq, Idech, IchBatt);
     if(!bat) return;
-    const cle = N*cout(p) + nReg*cout(reg) + bat.units*cout(bat.m) + (conv?cout(conv.m):0);
+    const cle = N*(cout(p)+surcout(mat,'panneaux',15000)) + nReg*cout(reg) + bat.units*(cout(bat.m)+surcout(mat,'batteries',0)) + (conv?cout(conv.m):0);
     if(!best || cle < best.cle) best = { cle, V, pv:{ m:p, ns, np, N, Wc, mode, ratio, ...t }, reg:{ m:reg, n:nReg, Ich }, bat:{ ...bat, usable, nomReq, Idech, Ich:IchBatt }, prodMois };
   }));
   if(!best){ r.raisons.push(`Aucune combinaison panneaux + régulateur + batteries ${P.tech==='lithium'?'lithium':'gel'} en ${V} V dans votre matériel.`); return r; }
@@ -342,7 +345,7 @@ function hybride(B, P, c, mat, secours){
       const nomReq = usable / (T.dod*T.vieil);
       const bat = choisirBatteries(mat, P.tech, V, nomReq, Idech, Ich);
       if(!bat){ pb.add('batterie'); return; }
-      const cle = cfg.N*cout(p) + bat.units*cout(bat.m) + cout(h);
+      const cle = cfg.N*(cout(p)+surcout(mat,'panneaux',15000)) + bat.units*(cout(bat.m)+surcout(mat,'batteries',0)) + cout(h);
       if(!best || cle < best.cle) best = { cle, V, h, ch, Breq, pv:{ m:p, ...cfg, mode:'MPPT', ratio:1, ...t }, bat:{ ...bat, usable, nomReq, Idech, Ich }, prodMois: Y.map(y => y*cfg.Wc) };
     });
   });

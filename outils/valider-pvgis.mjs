@@ -1,5 +1,6 @@
 // Validation indépendante : chaque système proposé par SolaDima est simulé heure par heure par PVGIS
 // (outil « systèmes autonomes », 16 années de météo réelle) qui compte les jours où la batterie se vide.
+// Critère retenu : moins de ~10 % de jours « batterie vide » au pire mois et ~2 % sur l'année.
 // Usage : node outils/valider-pvgis.mjs [aut]     (aut = jours d'autonomie en plus de la nuit, défaut 0,5)
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -34,7 +35,6 @@ for(const [nom, app] of CAS) for(const ville of VILLES){
   if(!d){ console.log(nom, ville, 'PVGIS indisponible'); continue; }
   const m = d.outputs.monthly, pire = m.reduce((x,y) => y.f_e > x.f_e ? y : x);
   console.log(`${nom.padEnd(16)} ${ville.padEnd(13)} ${a.nom.padEnd(28)} ${String(a.pv.Wc).padStart(5)} Wc ${(a.bat.Wh/1000).toFixed(2).padStart(6)} kWh `
-    + `| jours batterie vide : année ${d.outputs.totals.f_e.toFixed(1)} %, pire mois ${C.MOIS[pire.month-1]} ${pire.f_e.toFixed(1)} % `
-    + `| énergie manquante ${(100*d.outputs.totals.E_miss/a.chaine.Etot).toFixed(1)} %`);
+    + `| jours où la batterie se vide : année ${d.outputs.totals.f_e.toFixed(1)} %, pire mois ${C.MOIS[pire.month-1]} ${pire.f_e.toFixed(1)} %`);
   await pause(400);
 }

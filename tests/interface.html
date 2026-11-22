@@ -119,6 +119,10 @@ fr.onload = () => {
     log(d.querySelectorAll('#listeDos .badge.demo-b').length === 4 && !!d.querySelector('#boxRetirerDemo button'), 'démo : exemples marqués, bouton « Retirer les exemples »');
     w.ouvrirDossier(demos.find(x => /village/.test(x.client)).id); w.vue('systeme');
     log(w.calculer().choisie && w.calculer().choisie.id === 'kit12', 'démo village : kit 12 V retenu');
+    for(const id of ['kit12','regconv','hybride']){ w.choisirArchi(id); const r = w.calculer(); let ok = false; try{ const sv = w.schemaSVG(r, true); ok = r.choisie.id===id && sv.startsWith('<svg') && sv.includes('Batteries') && w.planInstallation(r).length === 7; }catch(e){ log(false, 'schéma ' + id + ' : ' + e.message); } log(ok, 'schéma de montage et plan d\'installation : ' + id); }
+    w.vue('systeme'); log(!!d.querySelector('#sysSchema button'), 'système : bouton « Voir le schéma de montage »');
+    w.ouvrirSchema(); log(!!d.querySelector('#sh .schema svg') && !!d.querySelector('#sh .plan h4'), 'schéma affiché avec le plan d\'installation'); w.closeSheet();
+    log(w.docSchema().includes('data:image/svg+xml') && w.docPlan().includes('Ordre de raccordement'), 'pages PDF : schéma et plan');
     w.retirerDemo();
     log(w.eval('dossiers').length === avant && !w.eval('dossiers').some(x => x.demo), 'démo retirée');
     w.nouveauClient();

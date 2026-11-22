@@ -48,8 +48,9 @@ efface aussi celles de SolaDima.
    - **hybride + secours** du réseau SNE ou d'un groupe.
 
    Pour la solution retenue : câblage des panneaux, batteries, production mois
-   par mois, câbles et protections, et comparaison avec un groupe électrogène
-   sur 10 ans.
+   par mois, câbles et protections, comparaison avec un groupe électrogène
+   sur 10 ans, et **schéma de montage** avec **plan d'installation**
+   (exportables en PDF, ou joints au devis).
 3. **Devis** : lignes et prix, remise, conditions ; export PDF / WhatsApp avec
    le bilan de consommation et la note de calcul.
 4. **Matériel** : votre catalogue, avec une icône et une fiche descriptive

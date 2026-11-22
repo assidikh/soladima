@@ -198,6 +198,9 @@
   .fiche .resume-l{ font-size:13px; padding:6px 0; }
   .fiche-mini{ margin-top:6px; } .fiche-mini summary{ color:var(--primary); font-size:13px; font-weight:600; padding:4px 0; }
   .fiche-mini .fiche{ margin-top:6px; }
+  .schema{ border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .plan h4{ margin:12px 0 4px; color:var(--primary); font-size:14px; } .plan ul{ margin:0; padding-left:18px; } .plan li{ margin:3px 0; line-height:1.45; font-size:14px; }
+  #sheet .plan h4{ font-size:14px; margin:12px 0 4px; } #sheet .plan li{ font-size:12.5px; line-height:1.5; margin:2px 0; color:#222; }
   .repart{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; }
   .repart span{ white-space:nowrap; color:var(--muted); } .repart b{ color:var(--text); }
   .repart input[type=range]{ flex:1; min-width:0; accent-color:var(--primary); height:28px; }
@@ -709,6 +712,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     <div class="card" id="sysResultats"></div>
     <div class="card" id="sysProduction"></div>
     <div class="card" id="sysCables"></div>
+    <div class="card" id="sysSchema"></div>
     <div class="card" id="sysEco"></div>
     <div class="card">
       <h2>Réglages de l'étude</h2>
@@ -773,6 +777,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <textarea id="dNote" rows="3" oninput="S.devis.note=this.value;save()"></textarea>
       <label class="coche"><input id="dBilan" type="checkbox" onchange="S.devis.bilan=this.checked;save()"> Joindre le bilan de consommation</label>
       <label class="coche"><input id="dCalcul" type="checkbox" onchange="S.devis.noteCalcul=this.checked;save()"> Joindre la note de calcul</label>
+      <label class="coche"><input id="dSchema" type="checkbox" onchange="S.devis.schema=this.checked;save()"> Joindre le schéma de montage et le plan d'installation</label>
     </div>
   </section>
 
@@ -880,6 +885,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <script src="climat.js"></script>
 <script src="donnees.js"></script>
 <script src="calcul.js"></script>
+<script src="schema.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

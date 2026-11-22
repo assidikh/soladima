@@ -1,8 +1,8 @@
 // Changez ce numéro à chaque mise à jour de l'application (v1 -> v2 -> v3...)
-const VERSION = 'v7';
+const VERSION = 'v8';
 const PREFIX = 'soladima-';
 const CACHE = PREFIX + VERSION;
-const FILES = ['./', './index.html', './app.js', './calcul.js', './climat.js', './donnees.js', './manifest.webmanifest', './icon-192.png', './icon-512.png',
+const FILES = ['./', './index.html', './app.js', './schema.js', './calcul.js', './climat.js', './donnees.js', './manifest.webmanifest', './icon-192.png', './icon-512.png',
   './images/cable_ac.jpg', './images/cable_alu.jpg', './images/cable_dc.jpg', './images/cable_pv.jpg', './images/coffret.jpg', './images/convertisseur.jpg', './images/convertisseur_modifie.jpg', './images/disj_ac.jpg', './images/fusible_dc.jpg', './images/fusible_pv.jpg', './images/gel.jpg', './images/hybride.jpg', './images/installation.jpg', './images/lithium.jpg', './images/mppt.jpg', './images/panneau.jpg', './images/parafoudre_pv.jpg', './images/pwm.jpg', './images/sect_pv.jpg', './images/support.jpg', './images/terre.jpg', './images/transport.jpg'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {

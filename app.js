@@ -370,9 +370,9 @@ function choisirArchi(id){ S.params.archi = id; save(); renderResultats(); majBa
 
 function renderResultats(){
   const r = calculer();
-  ['sysComparaison','sysResultats','sysProduction','sysCables','sysEco'].forEach(id => $(id).style.display = r.vide ? 'none' : 'block');
+  ['sysComparaison','sysResultats','sysProduction','sysCables','sysSchema','sysEco'].forEach(id => $(id).style.display = r.vide ? 'none' : 'block');
   if(r.vide){ $('sysComparaison').style.display='block'; $('sysComparaison').innerHTML = '<h2>Solutions possibles</h2><div class="empty">Ajoutez d\'abord les appareils du client dans l\'onglet Besoins.</div>'; return; }
-  renderComparaison(r); renderDetail(r); renderProduction(r); renderCables(r); renderEco(r);
+  renderComparaison(r); renderDetail(r); renderProduction(r); renderCables(r); renderSchemaCarte(r); renderEco(r);
 }
 // Fourchette de prix d'une solution : somme des prix minimum et maximum de ses lignes
 function fourchette(a){
@@ -452,6 +452,52 @@ function infoMois(i){
 }
 
 /* ---------- Câbles et protections ---------- */
+/* ---------- Schéma de montage et plan d'installation ---------- */
+function renderSchemaCarte(r){
+  const box = $('sysSchema'); if(!r.choisie){ box.style.display = 'none'; return; }
+  box.innerHTML = `<h2>Schéma de montage</h2>
+    <p class="muted small" style="margin:0 0 10px">Câblage complet de la solution retenue (panneaux, protections, batteries, onduleur, sortie 230 V) avec les sections de câbles et les calibres, et le plan d'installation étape par étape.</p>
+    <button class="btn" onclick="ouvrirSchema()">🔌 Voir le schéma de montage</button>
+    <button class="btn sec" style="margin-top:8px" onclick="exporterSchemaPDF()">📄 Schéma et plan d'installation en PDF</button>`;
+}
+function ouvrirSchema(){
+  const r = calculer(); if(!r.choisie) return;
+  openSheet(`<div class="shh"><b>Schéma de montage</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
+    <div class="schema">${schemaSVG(r, false)}</div>
+    <button class="btn" style="margin:10px 0" onclick="exporterSchemaPDF()">📄 Exporter en PDF (schéma + plan)</button>
+    <h3 style="margin:14px 0 4px">Plan d'installation</h3><div class="plan">${planHTML(r)}</div>
+    <p class="muted small">Schéma de principe à adapter sur place ; respecter les notices des fabricants.</p>`);
+}
+// Pages du document (format A4, fond blanc) : schéma puis plan d'installation
+function docSchema(){
+  const r = calculer(), svg = schemaSVG(r, true);
+  return `<div class="top">${enTete()}<div class="ttl"><h3>SCHÉMA</h3><div>Devis N° ${esc(S.num)}</div><div>${esc(dCourt(S.date))}</div></div></div>
+    <div class="cl"><b>Client :</b> ${esc(S.client)}${S.lieu||S.params.ville?`<br><b>Site :</b> ${esc([S.lieu, S.params.ville].filter(Boolean).join(', '))}`:''}</div>
+    <img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" style="width:100%;display:block" alt="Schéma de montage" />
+    <div class="disc">Schéma de principe établi d'après le dimensionnement ; à adapter sur place et selon les notices des fabricants.</div>${piedDoc()}`;
+}
+function docPlan(){
+  const r = calculer();
+  return `<div class="top">${enTete()}<div class="ttl"><h3>PLAN D'INSTALLATION</h3><div>Devis N° ${esc(S.num)}</div><div>${esc(dCourt(S.date))}</div></div></div>
+    <div class="cl"><b>Client :</b> ${esc(S.client)} · <b>Solution :</b> ${esc(r.choisie.nom)}</div>
+    <div class="plan">${planHTML(r)}</div>${piedDoc()}`;
+}
+async function pdfDepuisPages(pages, base){
+  const { jsPDF } = window.jspdf, doc = new jsPDF({unit:'pt', format:'a4'});
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  pages.forEach(([n,c],k)=>{
+    if(k>0) doc.addPage();
+    const imgH = c.height*W/c.width, data = c.toDataURL('image/jpeg',0.95); let y = 0;
+    doc.addImage(data,'JPEG',0,y,W,imgH);
+    while(imgH+y > H+1){ y -= H; doc.addPage(); doc.addImage(data,'JPEG',0,y,W,imgH); }
+  });
+  doc.save(nomFichier(base,'pdf'));
+}
+async function exporterSchemaPDF(){
+  if(!calculer().choisie) return; toast('Création du PDF…');
+  try{ await pdfDepuisPages([['Schema', await capturer(docSchema())], ['Plan', await capturer(docPlan())]], 'Schema_montage'); }
+  catch(e){ toast('Impossible de créer le PDF'); }
+}
 function renderCables(r){
   const a = r.choisie, box = $('sysCables');
   if(!a){ box.style.display = 'none'; return; }
@@ -503,7 +549,7 @@ function lignesAuto(){ const a = calculer().choisie; return a ? a.lignes : []; }
 const sigDe = L => JSON.stringify(L.map(l=>[l.des,l.qte,l.pu]));
 function initDevis(){
   $('dNum').value = S.num||''; $('dDate').value = S.date||''; $('dObjet').value = S.devis.objet||'';
-  $('dRemise').value = S.devis.remise||''; $('dNote').value = S.devis.note||''; $('dBilan').checked = !!S.devis.bilan; $('dCalcul').checked = !!S.devis.noteCalcul;
+  $('dRemise').value = S.devis.remise||''; $('dNote').value = S.devis.note||''; $('dBilan').checked = !!S.devis.bilan; $('dCalcul').checked = !!S.devis.noteCalcul; $('dSchema').checked = !!S.devis.schema;
   if(!S.devis.lines.length && lignesAuto().length) regenererLignes(false);
   renderLignesDevis(); majBanner();
 }
@@ -870,6 +916,7 @@ async function creerPages(){
   const pages = [['Devis', docDevis()]];
   if(S.devis.bilan && S.appareils.some(a=>a.qte>0&&a.w>0)) pages.push(['Bilan', docBilan()]);
   if(S.devis.noteCalcul && calculer().choisie) pages.push(['Note_de_calcul', docNoteCalcul()]);
+  if(S.devis.schema && calculer().choisie) pages.push(['Schema_montage', docSchema()], ['Plan_installation', docPlan()]);
   const out = []; for(const [n,h] of pages) out.push([n, await capturer(h)]); return out;
 }
 const nomFichier = (base,ext) => `${base}_${(S.client||'client').trim().replace(/[^\w\-]+/g,'_')}.${ext}`;
@@ -891,15 +938,7 @@ async function envoyerWhatsApp(){
 async function genererPDF(){
   if(!verifierDevis()) return; toast('Création du PDF…');
   try{
-    const pages = await creerPages(), { jsPDF } = window.jspdf, doc = new jsPDF({unit:'pt', format:'a4'});
-    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
-    pages.forEach(([n,c],k)=>{
-      if(k>0) doc.addPage();
-      const imgH = c.height*W/c.width, data = c.toDataURL('image/jpeg',0.95); let y = 0;
-      doc.addImage(data,'JPEG',0,y,W,imgH);
-      while(imgH+y > H+1){ y -= H; doc.addPage(); doc.addImage(data,'JPEG',0,y,W,imgH); }
-    });
-    doc.save(nomFichier('Devis','pdf'));
+    await pdfDepuisPages(await creerPages(), 'Devis');
   }catch(e){ toast('Impossible de créer le PDF'); }
 }
 

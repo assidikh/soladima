@@ -112,6 +112,7 @@ fr.onload = () => {
     w.closeSheet();
     w.confirm = () => true;
     log(!!d.querySelector('footer.credit .lien-demo') && d.querySelector('header .copy').textContent.includes('2026'), 'bouton Démo en bas de page, © à côté du titre');
+    const L_demo = () => w.eval('dossiers').filter(x => x.demo);
     const avant = w.eval('dossiers').length; w.chargerDemo();
     const demos = w.eval('dossiers').filter(x => x.demo);
     log(demos.length === 4 && w.eval('dossiers').length === avant + 4, 'démo : 4 clients d\'exemple ajoutés sans toucher aux autres');
@@ -120,6 +121,15 @@ fr.onload = () => {
     w.ouvrirDossier(demos.find(x => /village/.test(x.client)).id); w.vue('systeme');
     log(w.calculer().choisie && w.calculer().choisie.id === 'kit12', 'démo village : kit 12 V retenu');
     for(const id of ['kit12','regconv','hybride']){ w.choisirArchi(id); const r = w.calculer(); let ok = false; try{ const sv = w.schemaSVG(r, true); ok = r.choisie.id===id && sv.startsWith('<svg') && sv.includes('Batteries') && w.planInstallation(r).length === 7; }catch(e){ log(false, 'schéma ' + id + ' : ' + e.message); } log(ok, 'schéma de montage et plan d\'installation : ' + id); }
+    w.ouvrirDossier(L_demo().find(x => /Villa/.test(x.client)).id); w.choisirArchi('hybride');
+    const r1 = w.calculer(), sansOpt = w.schemaSVG(r1, true, {}), avecOpt = w.schemaSVG(r1, true, { appareils:true });
+    log(!sansOpt.includes('un disjoncteur par circuit') && avecOpt.includes('un disjoncteur par circuit'), 'option « installation des appareils » : schéma actuel si décochée, circuits si cochée');
+    const ci = w.circuitsAppareils(r1).circuits;
+    log(ci.filter(x => x.nom==='Circuit dédié').length >= 3 && ci.some(x => /Éclairage/.test(x.nom)) && ci.some(x => /Prises/.test(x.nom)), 'circuits : dédiés (clim, frigo, congélateur, pompe), éclairage, prises');
+    log(ci.filter(x => /Éclairage/.test(x.nom)).every(x => x.points <= 8) && ci.find(x => x.appareils.some(n => /Climatiseur/.test(n))).nom === 'Circuit dédié', 'circuits : 8 points maximum, climatiseur sur circuit dédié');
+    log(w.planInstallation(r1, { appareils:true }).some(e => e.titre === 'Installation des appareils') && w.planInstallation(r1, {}).length === 7, 'plan : étape « Installation des appareils » seulement si l\'option est cochée');
+    w.ouvrirDossier(L_demo().find(x => /village/.test(x.client)).id);
+    log(w.schemaSVG(w.calculer(), true, { appareils:true }).includes('fusible') && w.circuitsAppareils(w.calculer()).en12, 'kit 12 V : circuits 12 V avec fusibles');
     w.vue('systeme'); log(!!d.querySelector('#sysSchema button'), 'système : bouton « Voir le schéma de montage »');
     w.ouvrirSchema(); log(!!d.querySelector('#sh .schema svg') && !!d.querySelector('#sh .plan h4'), 'schéma affiché avec le plan d\'installation'); w.closeSheet();
     log(w.docSchema().includes('data:image/svg+xml') && w.docPlan().includes('Ordre de raccordement'), 'pages PDF : schéma et plan');

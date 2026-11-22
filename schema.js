@@ -9,7 +9,53 @@ const PALETTES = {
 };
 const nb = x => String(Math.round(x*10)/10).replace('.', ',');
 
-function schemaSVG(r, pourPDF){
+/* ------------------------------------------------------------------
+   Installation des appareils : répartition en circuits (règles usuelles, type NF C 15-100)
+   - éclairage : 8 points au plus par circuit, 1,5 mm², disjoncteur 10 A ;
+   - prises : 8 au plus par circuit, 2,5 mm², disjoncteur 20 A ;
+   - circuit dédié pour tout appareil de 1 000 W ou plus, ou à moteur / compresseur ;
+   - section vérifiée en chute de tension (3 %) sur la longueur supposée d'un circuit.
+   En 12 V : un fusible par circuit, section calculée pour 3 % de chute (les courants sont 19 fois plus forts).
+   ------------------------------------------------------------------ */
+const L_CIRCUIT = 15, L_CIRCUIT_12 = 8;                   // longueur supposée d'un circuit, aller simple (m) : 230 V, 12 V
+const DV_12 = 0.05;                                      // chute admise sur un circuit 12 V d'éclairage / petits appareils
+// Éclairage : lampes, ampoules, tubes… mais pas les écrans « LED » (télévisions, moniteurs)
+const estEclairage = nom => !/t[eé]l[eé]|\btv\b|[eé]cran|moniteur/i.test(nom) && /lampe|ampoule|\bled\b|tube|n[eé]on|projecteur|[eé]clairage|lumi[eè]re|lampadaire/i.test(nom);
+const CAL_AC = [10, 16, 20, 25, 32], CAL_DC = [5, 10, 15, 20, 25, 30, 40];
+function circuitsAppareils(r){
+  const a = r.choisie, en12 = !a.hyb && !a.conv, V = en12 ? 12 : 230;
+  const ap = (S.appareils||[]).filter(x => x.qte>0 && x.w>0);
+  const circuits = [];
+  const section = (I, cal) => en12 ? SolaCalcul.sectionCable(I, L_CIRCUIT_12, V, DV_12, cal).S : SolaCalcul.sectionCable(I, L_CIRCUIT, V, 0.03, cal).S;
+  const dedie = x => x.w >= 1000 || (x.dem||1) >= 3 || /clim|split/i.test(x.nom);   // un climatiseur a toujours son circuit
+  // 1) Circuits dédiés : un par appareil (par unité)
+  ap.filter(x => !estEclairage(x.nom) && dedie(x)).forEach(x => {
+    for(let k=0; k<x.qte; k++){
+      const clim = /clim|split/i.test(x.nom), I = x.w / V;
+      let cal = (en12 ? CAL_DC : CAL_AC).find(c => c >= 1.25*I) || 32;
+      if((clim || (x.dem||1) >= 3) && !en12) cal = Math.max(cal, 16);   // climatiseur, moteur : au moins 16 A (appel au démarrage)
+      const S0 = en12 ? section(I, cal) : Math.max(cal <= 16 ? 1.5 : cal <= 20 ? 2.5 : cal <= 25 ? 4 : 6, clim ? 2.5 : 0, section(I, cal));
+      circuits.push({ nom: 'Circuit dédié', appareils:[x.nom + (x.qte>1 ? ' n° '+(k+1) : '')], cal, S:S0, I });
+    }
+  });
+  // 2) Éclairage puis prises : regroupés par 8 points au plus
+  const grouper = (liste, nom, cal0, s0) => {
+    const points = []; liste.forEach(x => { for(let k=0; k<x.qte; k++) points.push(x); });
+    for(let i=0; i<points.length; i+=8){
+      const lot = points.slice(i, i+8), I = lot.reduce((t,x)=>t+x.w,0) / V;
+      const cal = en12 ? (CAL_DC.find(c => c >= 1.25*I) || 40) : cal0;
+      const S0 = en12 ? section(I, cal) : Math.max(s0, section(I, cal));
+      const noms = {}; lot.forEach(x => noms[x.nom] = (noms[x.nom]||0) + 1);
+      circuits.push({ nom: nom + (points.length > 8 ? ' ' + (i/8+1) : ''), appareils: Object.entries(noms).map(([n,q]) => q + ' × ' + n), cal, S:S0, I, points: lot.length });
+    }
+  };
+  grouper(ap.filter(x => estEclairage(x.nom)), 'Éclairage', 10, 1.5);
+  grouper(ap.filter(x => !estEclairage(x.nom) && !dedie(x)), 'Prises', 20, 2.5);
+  return { circuits, V, en12 };
+}
+
+function schemaSVG(r, pourPDF, opt){
+  opt = opt || {};
   const a = r.choisie, c = r.climat, B = a.besoins;
   const K = PALETTES[!pourPDF && document.body.classList.contains('dark') ? 'sombre' : 'clair'];
   const W = 360, G = 20, D = 340, CG = 85, CD = 275;            // marges, centres des colonnes gauche et droite
@@ -32,6 +78,27 @@ function schemaSVG(r, pourPDF){
   const cable = cb => cb ? `${nb(cb.S)} mm² ${cb.m.metal==='aluminium'?'alu':'cuivre'} ${cb.m.ame||'souple'} · ${nb(cb.L)} m` : '';
   const trouveCable = debut => a.cables.find(x => x.lien.startsWith(debut));
   const prot = g => a.protections.filter(p => p.genre === g);
+  // Liste des circuits sous le tableau : bus vertical à gauche, un disjoncteur ou fusible par circuit
+  const dessinerCircuits = (yy, coulBus) => {
+    const { circuits, en12 } = circuitsAppareils(r);
+    const xb = G + 8, h1 = 13;
+    let yc = yy;
+    circuits.forEach(ci => {
+      const lignes = ci.appareils.slice(0, 3), h = 22 + lignes.length*h1 + (ci.appareils.length > 3 ? h1 : 0);
+      ligne(xb, yc, xb, yc + h/2, coulBus, { w:2.5 });
+      ligne(xb, yc + h/2, xb + 16, yc + h/2, coulBus, { w:2 });
+      if(en12) fusible(xb + 24, yc + h/2, '', false);
+      else s += `<rect x="${xb+16}" y="${yc+h/2-7}" width="16" height="14" rx="2" fill="${K.fond}" stroke="${K.txt}" stroke-width="1.2"/><line x1="${xb+20}" y1="${yc+h/2+4}" x2="${xb+28}" y2="${yc+h/2-4}" stroke="${K.txt}" stroke-width="1.2"/>`;
+      rect(xb + 40, yc + 3, D - xb - 40, h - 6, { st:coulBus, sw:0.8, rx:6 });
+      t(xb + 48, yc + 16, `${ci.nom} · ${en12?'fusible':'disjoncteur'} ${ci.cal} A · câble ${nb(ci.S)} mm²`, { fs:9, b:true });
+      lignes.forEach((n, i) => t(xb + 48, yc + 29 + i*h1, n.length > 48 ? n.slice(0,46)+'…' : n, { fs:8.5, c:K.mut }));
+      if(ci.appareils.length > 3) t(xb + 48, yc + 29 + 3*h1, `+ ${ci.appareils.length-3} autre(s)`, { fs:8.5, c:K.mut });
+      if(circuits.indexOf(ci) < circuits.length-1) ligne(xb, yc + h/2, xb, yc + h, coulBus, { w:2.5 });
+      yc += h;
+    });
+    t(xb + 40, yc + 12, en12 ? `Longueur supposée par circuit : ${L_CIRCUIT_12} m (chute ≤ 5 %).` : `Longueur supposée par circuit : ${L_CIRCUIT} m. Terre sur toutes les prises.`, { fs:8, c:K.mut });
+    return yc + 18;
+  };
   const fusDc = prot('fusible_dc');
 
   // En-tête
@@ -52,7 +119,7 @@ function schemaSVG(r, pourPDF){
     s += `<rect x="${x0+i*(pw+gx)}" y="${y0+j*(ph+gy)}" width="${pw}" height="${ph}" rx="1.5" fill="${K.pv}" stroke="${K.pvCadre}" stroke-width="1"/>`;
     if(j>0) ligne(x0+i*(pw+gx)+pw/2, y0+j*(ph+gy)-gy, x0+i*(pw+gx)+pw/2, y0+j*(ph+gy), K.plus, { w:1.2 });
   }
-  if(a.pv.np > cols || a.pv.ns > rows) t(D-10, y+hPv-5, `(${a.pv.N} panneaux au total)`, { fs:8, a:'end', c:K.mut });
+  if(a.pv.np > cols || a.pv.ns > rows) t(G+8, y+84, `(schéma réduit : ${a.pv.N} panneaux au total)`, { fs:8, c:K.mut });
   y += hPv;
 
   // 2) Liaison panneaux → boîte de jonction
@@ -115,9 +182,10 @@ function schemaSVG(r, pourPDF){
     dc(CD, y, CD, y+38); fusible(CD-2.5, y+19, f12 ? `F ${f12.calibre} A` : '', true);
     y += 38;
     rect(G, y, D-G, 46, { st:K.txt, sw:1.4 });
-    t(G+8, y+16, 'Circuits 12 V (un fusible par circuit)', { fs:10.5, b:true });
+    t(G+8, y+16, opt.appareils ? 'Boîte de fusibles 12 V' : 'Circuits 12 V (un fusible par circuit)', { fs:10.5, b:true });
     t(G+8, y+31, c12 ? `Départ : ${cable(c12)}` : '', { c:K.mut });
     y += 46;
+    if(opt.appareils){ ligne(G+8, y, G+8, y+10, K.plus, { w:2.5 }); y = dessinerCircuits(y+10, K.plus); }
   } else {
     y = Math.max(y, yApp + hApp);
   }
@@ -134,11 +202,18 @@ function schemaSVG(r, pourPDF){
     t(G+8, y+30, 'Protection des personnes et du circuit 230 V', { c:K.mut });
     y += 40;
     ac(W/2, y, W/2, y+22); y += 22;
-    const app = (S.appareils||[]).filter(x => x.qte>0 && x.w>0).slice(0, 4).map(x => `${x.qte} × ${x.nom}`);
-    rect(G, y, D-G, 30 + app.length*12, { st:K.ac, sw:1 });
-    t(G+8, y+16, 'Tableau électrique → appareils', { fs:10.5, b:true });
-    app.forEach((n, i) => t(G+8, y+30+i*12, n.length > 52 ? n.slice(0,50)+'…' : n, { c:K.mut }));
-    y += 30 + app.length*12;
+    if(opt.appareils){
+      rect(G, y, D-G, 30, { st:K.ac, sw:1 });
+      t(G+8, y+19, 'Tableau électrique : un disjoncteur par circuit', { fs:10.5, b:true });
+      y += 30; ligne(G+8, y, G+8, y+10, K.ac, { w:2.5 });
+      y = dessinerCircuits(y+10, K.ac);
+    } else {
+      const app = (S.appareils||[]).filter(x => x.qte>0 && x.w>0).slice(0, 4).map(x => `${x.qte} × ${x.nom}`);
+      rect(G, y, D-G, 30 + app.length*12, { st:K.ac, sw:1 });
+      t(G+8, y+16, 'Tableau électrique → appareils', { fs:10.5, b:true });
+      app.forEach((n, i) => t(G+8, y+30+i*12, n.length > 52 ? n.slice(0,50)+'…' : n, { c:K.mut }));
+      y += 30 + app.length*12;
+    }
   }
 
   // 6) Terre et légende
@@ -156,7 +231,8 @@ function schemaSVG(r, pourPDF){
 }
 
 /* Plan d'installation : étapes concrètes, avec les valeurs de ce système */
-function planInstallation(r){
+function planInstallation(r, opt){
+  opt = opt || {};
   const a = r.choisie, c = r.climat, T = SolaCalcul.TECH[r.P.tech];
   const surface = a.pv.N * a.pv.m.w / 205;                     // ≈ 205 Wc par m² pour les panneaux actuels
   const vocC = a.pv.vocF * a.pv.ns, k = a.V/12;
@@ -196,14 +272,24 @@ function planInstallation(r){
       'Appuyer sur le bouton « test » du disjoncteur différentiel : il doit couper.',
       'Expliquer au client l\'écran de l\'appareil, les appareils à éviter le soir, et le nettoyage des panneaux.'
     ]],
+    opt.appareils ? ['Installation des appareils', (() => {
+      const { circuits, en12 } = circuitsAppareils(r);
+      return circuits.map(ci => `${ci.nom} : ${en12?'fusible':'disjoncteur'} ${ci.cal} A, câble ${nb(ci.S)} mm² — ${ci.appareils.join(', ')}.`).concat(en12 ? [
+        'Câbles 12 V courts et de bonne section : en 12 V, les courants sont 19 fois plus forts qu\'en 230 V.',
+        'Respecter les polarités (+ rouge, − noir) à chaque appareil ; un fusible au départ de chaque circuit.'
+      ] : [
+        'Prises avec terre, placées à au moins 30 cm du sol ; pas de prise multiple pour les gros appareils.',
+        'Climatiseur, frigo, congélateur et pompe chacun sur son circuit : leur démarrage ne fait alors pas sauter les autres circuits.',
+        'Repérer chaque disjoncteur dans le tableau (éclairage, prises, climatiseur…).'
+      ]); })()] : null,
     ['Entretien', [
       'Nettoyer les panneaux à l\'eau, sans produit, chaque semaine pendant l\'harmattan et après les vents de sable.',
       'Tous les 6 mois : resserrer les cosses, vérifier les câbles et la fixation des supports.',
       'Surveiller la tension des batteries le matin : une tension basse chaque matin signale une consommation trop forte ou des panneaux sales.'
     ]]
   ];
-  return etapes.map(([titre, pts]) => ({ titre, points: pts.filter(Boolean) }));
+  return etapes.filter(Boolean).map(([titre, pts]) => ({ titre, points: pts.filter(Boolean) }));
 }
-function planHTML(r){
-  return planInstallation(r).map(e => `<h4>${esc(e.titre)}</h4><ul>${e.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`).join('');
+function planHTML(r, opt){
+  return planInstallation(r, opt).map(e => `<h4>${esc(e.titre)}</h4><ul>${e.points.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`).join('');
 }

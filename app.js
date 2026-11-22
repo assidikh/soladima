@@ -457,20 +457,24 @@ function renderSchemaCarte(r){
   const box = $('sysSchema'); if(!r.choisie){ box.style.display = 'none'; return; }
   box.innerHTML = `<h2>Schéma de montage</h2>
     <p class="muted small" style="margin:0 0 10px">Câblage complet de la solution retenue (panneaux, protections, batteries, onduleur, sortie 230 V) avec les sections de câbles et les calibres, et le plan d'installation étape par étape.</p>
+    <label class="coche" style="margin:0 0 10px"><input type="checkbox" ${S.params.schemaAppareils?'checked':''} onchange="setSchemaAppareils(this.checked)"> Inclure l'installation des appareils (circuits, disjoncteurs, câbles)</label>
     <button class="btn" onclick="ouvrirSchema()">🔌 Voir le schéma de montage</button>
     <button class="btn sec" style="margin-top:8px" onclick="exporterSchemaPDF()">📄 Schéma et plan d'installation en PDF</button>`;
 }
+const optSchema = () => ({ appareils: !!S.params.schemaAppareils });
+function setSchemaAppareils(v){ S.params.schemaAppareils = v; save(); if(sheetOpen) ouvrirSchema(); }
 function ouvrirSchema(){
   const r = calculer(); if(!r.choisie) return;
   openSheet(`<div class="shh"><b>Schéma de montage</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
-    <div class="schema">${schemaSVG(r, false)}</div>
+    <label class="coche" style="margin:0 0 8px"><input type="checkbox" ${S.params.schemaAppareils?'checked':''} onchange="setSchemaAppareils(this.checked);renderSchemaCarte(calculer())"> Inclure l'installation des appareils</label>
+    <div class="schema">${schemaSVG(r, false, optSchema())}</div>
     <button class="btn" style="margin:10px 0" onclick="exporterSchemaPDF()">📄 Exporter en PDF (schéma + plan)</button>
-    <h3 style="margin:14px 0 4px">Plan d'installation</h3><div class="plan">${planHTML(r)}</div>
+    <h3 style="margin:14px 0 4px">Plan d'installation</h3><div class="plan">${planHTML(r, optSchema())}</div>
     <p class="muted small">Schéma de principe à adapter sur place ; respecter les notices des fabricants.</p>`);
 }
 // Pages du document (format A4, fond blanc) : schéma puis plan d'installation
 function docSchema(){
-  const r = calculer(), svg = schemaSVG(r, true);
+  const r = calculer(), svg = schemaSVG(r, true, optSchema());
   return `<div class="top">${enTete()}<div class="ttl"><h3>SCHÉMA</h3><div>Devis N° ${esc(S.num)}</div><div>${esc(dCourt(S.date))}</div></div></div>
     <div class="cl"><b>Client :</b> ${esc(S.client)}${S.lieu||S.params.ville?`<br><b>Site :</b> ${esc([S.lieu, S.params.ville].filter(Boolean).join(', '))}`:''}</div>
     <img src="data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}" style="width:100%;display:block" alt="Schéma de montage" />
@@ -480,7 +484,7 @@ function docPlan(){
   const r = calculer();
   return `<div class="top">${enTete()}<div class="ttl"><h3>PLAN D'INSTALLATION</h3><div>Devis N° ${esc(S.num)}</div><div>${esc(dCourt(S.date))}</div></div></div>
     <div class="cl"><b>Client :</b> ${esc(S.client)} · <b>Solution :</b> ${esc(r.choisie.nom)}</div>
-    <div class="plan">${planHTML(r)}</div>${piedDoc()}`;
+    <div class="plan">${planHTML(r, optSchema())}</div>${piedDoc()}`;
 }
 async function pdfDepuisPages(pages, base){
   const { jsPDF } = window.jspdf, doc = new jsPDF({unit:'pt', format:'a4'});

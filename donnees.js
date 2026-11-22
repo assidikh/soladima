@@ -238,7 +238,162 @@ const DEMO = [
     appareils:[['Ampoule LED',14],['Ventilateur de plafond',4],['Télévision LED 43',2],['Réfrigérateur 150',1],['Congélateur',1],['Climatiseur split 1,5 CV inverter',1],['Pompe',1],['Box',1]] }
 ];
 
-const API = { DEMO, prixMarche, PRIX_GROUPE_KVA, specCable, PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
+/* ------------------------------------------------------------------
+   Photos du matériel : photos réelles sous licence libre (Wikimedia Commons), réduites à 320 px.
+   L'auteur, la licence et la source de chaque photo sont affichés dans l'application (voir aussi
+   images/CREDITS.md). Un installateur peut remplacer la photo par celle de son propre article.
+   ------------------------------------------------------------------ */
+const IMAGES = {
+ "panneau": {
+  "fichier": "images/panneau.jpg",
+  "auteur": "Lamiot",
+  "licence": "CC BY-SA 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Monocrystalline_solar_panel.png"
+ },
+ "lithium": {
+  "fichier": "images/lithium.jpg",
+  "auteur": "Yo-Co-Man",
+  "licence": "CC BY-SA 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Lithium_Iron_Phosphate_LiFePO4_Cells_700_Ah_Amp_Hours_3.25_Volts_-_2.jpg"
+ },
+ "gel": {
+  "fichier": "images/gel.jpg",
+  "auteur": "Paxtonphan",
+  "licence": "CC BY-SA 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:12V_VRLA_Gel_Battery.jpg"
+ },
+ "hybride": {
+  "fichier": "images/hybride.jpg",
+  "auteur": "Asurnipal",
+  "licence": "CC BY-SA 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Dornbirn-Inverter_KACO_Powador_5000xi-DCS-DE-02ASD.jpg"
+ },
+ "convertisseur": {
+  "fichier": "images/convertisseur.jpg",
+  "auteur": "Qurren",
+  "licence": "CC BY-SA 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Meltec_car_power_inverter_SIV-300.jpg"
+ },
+ "convertisseur_modifie": {
+  "fichier": "images/convertisseur_modifie.jpg",
+  "auteur": "C J Cowie (Wikipédia en anglais)",
+  "licence": "CC BY-SA 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Inverter_CJC01.jpg"
+ },
+ "pwm": {
+  "fichier": "images/pwm.jpg",
+  "auteur": "Cody Kabus, U.S. Department of Energy",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:Kabus_000245_171295_516064_4578_(36775931446).jpg"
+ },
+ "mppt": {
+  "fichier": "images/mppt.jpg",
+  "auteur": "Ranjithkumar Murugesan",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:SUOER_SOLAR_CHARGE_CONTROLLER.jpg"
+ },
+ "cable_pv": {
+  "fichier": "images/cable_pv.jpg",
+  "auteur": "Veikk0.ma",
+  "licence": "CC BY 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:165W_solar_panel,_back.jpg"
+ },
+ "cable_dc": {
+  "fichier": "images/cable_dc.jpg",
+  "auteur": "Ulfbastel",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:Kabelschuh.jpg"
+ },
+ "cable_ac": {
+  "fichier": "images/cable_ac.jpg",
+  "auteur": "BPK",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:NYM_cable_and_clones.JPG"
+ },
+ "cable_alu": {
+  "fichier": "images/cable_alu.jpg",
+  "auteur": "Dave Bryant",
+  "licence": "CC BY-SA 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:ACSR_and_ACCC.JPG"
+ },
+ "fusible_dc": {
+  "fichier": "images/fusible_dc.jpg",
+  "auteur": "Widar23",
+  "licence": "CC BY-SA 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:NH_1_2_3.jpg"
+ },
+ "sect_pv": {
+  "fichier": "images/sect_pv.jpg",
+  "auteur": "IMOPrecision",
+  "licence": "CC BY-SA 4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Rotary_%22Knife_Contacts%22.jpg"
+ },
+ "fusible_pv": {
+  "fichier": "images/fusible_pv.jpg",
+  "auteur": "Alf van Beem",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:25A_ECO_cartridge_fuse,_pic1.JPG"
+ },
+ "parafoudre_pv": {
+  "fichier": "images/parafoudre_pv.jpg",
+  "auteur": "Fabexplosive",
+  "licence": "CC BY 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Fuse_and_surge_protection.jpg"
+ },
+ "disj_ac": {
+  "fichier": "images/disj_ac.jpg",
+  "auteur": "Diermaier",
+  "licence": "CC0",
+  "source": "https://commons.wikimedia.org/wiki/File:Residual_current_device_(RCD).jpg"
+ },
+ "terre": {
+  "fichier": "images/terre.jpg",
+  "auteur": "F1jmm",
+  "licence": "CC BY-SA 3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:HomeEarthRodAustralia1.jpg"
+ },
+ "support": {
+  "fichier": "images/support.jpg",
+  "auteur": "U.S. Navy",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:US_Navy_100614-N-8335D-090_Japanese_contractors_install_solar_panels_on_the_Public_Works_building_roof_at_Fleet_Activities_Sasebo,_Japan.jpg"
+ },
+ "installation": {
+  "fichier": "images/installation.jpg",
+  "auteur": "The White House",
+  "licence": "Public domain",
+  "source": "https://commons.wikimedia.org/wiki/File:White_House_solar_panels-1.jpg"
+ },
+ "transport": {
+  "fichier": "images/transport.jpg",
+  "auteur": "shankar s.",
+  "licence": "CC BY 2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:A_heavily_loaded_pickup_truck_brings_in_produce_to_the_Siem_Reap_central_market.jpg"
+ },
+ "coffret": {
+  "fichier": "images/coffret.jpg",
+  "auteur": "Ali@gwc.org.uk (Wikipédia en anglais)",
+  "licence": "CC BY-SA 2.5",
+  "source": "https://commons.wikimedia.org/wiki/File:UKDistributionBoard.JPG"
+ }
+};
+// Photo par défaut d'un article
+function cleImage(m){
+  switch(m.type){
+    case 'panneau': return 'panneau';
+    case 'batterie': return m.tech==='lithium' ? 'lithium' : 'gel';
+    case 'hybride': return 'hybride';
+    case 'convertisseur': return m.onde==='modifie' ? 'convertisseur_modifie' : 'convertisseur';
+    case 'regulateur': return m.techno==='pwm' ? 'pwm' : 'mppt';
+    case 'cable': return m.metal==='aluminium' ? 'cable_alu' : m.usage==='pv' ? 'cable_pv' : m.usage==='dc' ? 'cable_dc' : 'cable_ac';
+    case 'protection': return IMAGES[m.genre] ? m.genre : null;
+    case 'autre': { const n = String(m.nom||'').toLowerCase();
+      return m.auto==='panneaux' || /support|fixation/.test(n) ? 'support' : /install|pose/.test(n) ? 'installation' : /transport/.test(n) ? 'transport' : /coffret|petit mat/.test(n) ? 'coffret' : null; }
+    default: return null;
+  }
+}
+
+const API = { IMAGES, cleImage, DEMO, prixMarche, PRIX_GROUPE_KVA, specCable, PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
 G.DONNEES = API;
 if(typeof module==='object' && module.exports) module.exports = API;
 })(typeof globalThis!=='undefined' ? globalThis : this);

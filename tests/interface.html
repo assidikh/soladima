@@ -91,7 +91,9 @@ fr.onload = () => {
     log(!!d.getElementById('em_mpptMin'), 'fiche hybride : champ plage MPPT');
     w.closeSheet();
     w.vue('materiel');
-    log(d.querySelectorAll('#matBox details.artd .icm').length > 50 && !!d.querySelector('#matBox details.artd .fiche'), 'matériel : icônes et fiches dépliables');
+    log(d.querySelectorAll('#matBox details.artd .vig, #matBox details.artd .icm').length > 50 && !!d.querySelector('#matBox details.artd .fiche'), 'matériel : photos et fiches dépliables');
+    log(w.eval('materiel').every(x => w.photoMat(x)) && d.querySelectorAll('#matBox img.vig').length > 50, 'matériel : chaque article a sa photo (vignette)');
+    log(!!d.querySelector('#matBox .fiche .photo figcaption a'), 'fiche : photo en grand avec son crédit (auteur, licence, source)');
     const pAvant = w.eval('materiel').find(x=>x.type==='hybride').prix; w.setNiveauPrix('max');
     const hx = w.eval('materiel').find(x=>x.type==='hybride');
     log(hx.prix === hx.prixMax && hx.prix > pAvant, 'niveau « maximum » : le devis utilise le prix maximum'); w.setNiveauPrix('moyen');

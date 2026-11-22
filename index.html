@@ -163,6 +163,12 @@
   .install button{ border:0; border-radius:12px; background:var(--onp); color:var(--primary); font-weight:700; padding:12px 14px; font-size:15px; font-family:inherit; }
   .credit{ text-align:center; color:var(--muted); font-size:12px; line-height:1.6; margin:18px 0 0; }
   .credit a, #aPropos a{ color:var(--primary); }
+  .credit .liens{ display:flex; justify-content:center; align-items:center; gap:14px; margin-top:6px; }
+  .lien-demo{ border:1px solid var(--primary); background:var(--card); color:var(--primary); border-radius:999px; padding:6px 14px; font-size:13px; font-weight:700; font-family:inherit; }
+  header h1 .copy{ font-size:11px; font-weight:500; opacity:.85; vertical-align:middle; }
+  .demo{ border:2px dashed var(--primary); border-radius:16px; padding:14px; margin-bottom:14px; background:var(--card); }
+  .demo b{ display:block; font-size:16px; margin-bottom:4px; } .demo p{ margin:0 0 10px; color:var(--muted); font-size:14px; line-height:1.45; }
+  .badge.demo-b{ background:#e0e7ff; color:#3730a3; } body.dark .badge.demo-b{ background:#312e81; color:#c7d2fe; }
   .ligne-ap{ display:flex; align-items:center; gap:10px; padding:12px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
   .ligne-ap:last-of-type{ border-bottom:0; }
   .ligne-ap .info{ flex:1; min-width:0; }
@@ -615,7 +621,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <body>
 
 <header>
-  <h1 onclick="vue('accueil')">☀️ SolaDima<small id="titre">Accueil</small></h1>
+  <h1 onclick="vue('accueil')">☀️ SolaDima <span class="copy">© 2026</span><small id="titre">Accueil</small></h1>
   <button onclick="toggleDark()" aria-label="Mode sombre">🌙</button>
 </header>
 <!-- Onglets d'un client ouvert -->
@@ -639,13 +645,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <ol class="etapes"><li><b>⚡ Besoins</b><span>les appareils du client</span></li><li><b>🔆 Système</b><span>panneaux, batteries, onduleur</span></li><li><b>🧾 Devis</b><span>PDF ou WhatsApp</span></li></ol>
     </div>
     <div id="boxInstall"></div>
+    <div id="boxDemo"></div>
     <div class="card">
       <button class="btn" onclick="nouveauClient()">＋ Nouveau client</button>
       <button class="btn sec" style="margin-top:10px" onclick="dimensionnementRapide()">⚡ Commencer un dimensionnement</button>
       <button class="btn sec" style="margin-top:10px" onclick="vue('clients')">👥 Mes clients</button>
     </div>
     <div class="card" id="accRecents"></div>
-    <p class="credit">© 2026 SolaDima — Aboubakar Assidikh Youssouf. Tous droits réservés.<br><a href="#" onclick="vue('plus');setTimeout(()=>document.getElementById('aPropos').scrollIntoView(),50);return false">À propos</a></p>
   </section>
 
   <!-- ===== CLIENTS ===== -->
@@ -654,6 +660,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <button class="btn" onclick="nouveauClient()">＋ Nouveau client</button>
       <input id="rechDos" type="text" placeholder="🔍 Rechercher un client…" oninput="renderDossiers()" style="margin-top:12px" />
       <div id="listeDos"></div>
+      <div id="boxRetirerDemo"></div>
     </div>
   </section>
 
@@ -839,6 +846,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       </details>
     </div>
   </section>
+  <!-- Pied de page commun à toutes les pages -->
+  <footer class="credit">
+    © 2026 SolaDima — Aboubakar Assidikh Youssouf. Tous droits réservés.
+    <div class="liens"><button class="lien-demo" onclick="chargerDemo()">▶ Démo</button><a href="#" onclick="vue('plus');setTimeout(()=>document.getElementById('aPropos').scrollIntoView(),50);return false">À propos</a></div>
+  </footer>
 </main>
 
 <div id="actionbar"></div>

@@ -891,9 +891,10 @@ function renderDossiers(){
   const q = ($('rechDos')?.value||'').toLowerCase();
   const L = [...dossiers].sort((a,b)=>(b.maj||0)-(a.maj||0)).filter(d=>((d.client||'')+' '+(d.lieu||'')+' '+(d.num||'')).toLowerCase().includes(q));
   $('listeDos').innerHTML = L.length ? L.map(d => `<div class="art" onclick="ouvrirDossier('${d.id}')">
-      <div class="info"><b>${esc(d.client||'Sans nom')}</b><small>${esc([d.lieu, (d.params||{}).ville].filter(Boolean).join(', ') || dCourt(d.date))}</small></div>
+      <div class="info"><b>${esc(d.client||'Sans nom')}${d.demo?' <span class="badge demo-b">exemple</span>':''}</b><small>${esc([d.lieu, (d.params||{}).ville].filter(Boolean).join(', ') || dCourt(d.date))}</small></div>
       <span class="chev muted">›</span></div>`).join('')
-    : `<div class="empty">${q ? 'Aucun client trouvé.' : 'Aucun client pour l\'instant.<br>Appuyez sur « Nouveau client » pour commencer.'}</div>`;
+    : `<div class="empty">${q ? 'Aucun client trouvé.' : 'Aucun client pour l\'instant.<br>Appuyez sur « Nouveau client » pour commencer, ou sur « ▶ Démo » en bas de la page pour voir des exemples.'}</div>`;
+  $('boxRetirerDemo').innerHTML = aDemo() ? '<button class="btn sec small" style="margin-top:10px" onclick="retirerDemo()">Retirer les exemples</button>' : '';
 }
 function ouvrirDossier(id){
   const d = dossiers.find(x=>x.id===id); if(!d) return;
@@ -938,7 +939,36 @@ async function installer(){
            : '<p><b>Sur Android (Chrome)</b> : touchez le menu <b>⋮</b> en haut à droite, puis <b>« Installer l\'application »</b> ou <b>« Ajouter à l\'écran d\'accueil »</b>.</p><p><b>Sur ordinateur (Chrome, Edge)</b> : cliquez sur l\'icône d\'installation à droite de la barre d\'adresse.</p>'}
     <p class="muted small">Une fois installée, SolaDima s'ouvre comme une application et fonctionne sans internet.</p>`);
 }
+/* ---------- Démo : clients fictifs pour découvrir l'application ----------
+   Les exemples sont ajoutés à côté des vrais clients (marqués demo:true) et se retirent d'un geste. */
+const aDemo = () => dossiers.some(d => d.demo);
+function chargerDemo(){
+  if(aDemo()){ vue('clients'); toast('Les exemples sont déjà dans la liste des clients'); return; }
+  if(!confirm('Ajouter 4 clients d\'exemple pour découvrir SolaDima ?\nVos vrais clients ne seront pas modifiés.')) return;
+  sauverClient();
+  const maintenant = Date.now();
+  DONNEES.DEMO.forEach((x, k) => {
+    const appareils = x.appareils.map(([debut, q]) => { const p = PRESETS.find(p => p[0].startsWith(debut)); return p ? { ...depuisPreset(p), qte:q } : null; }).filter(Boolean);
+    const params = { ...paramsDefaut(), ville:x.ville, tech:x.tech, aut: x.aut!==undefined ? x.aut : paramsDefaut().aut, reseau:!!x.reseau, coupure:x.coupure||8 };
+    const r = SC.dimensionner(appareils, params, materiel), a = r.choisie;
+    const lignes = a ? a.lignes.map(l => ({ id:uid('l'), des:l.des, qte:l.qte, pu:l.pu, auto:true, edite:false })) : [];
+    dossiers.unshift({ id:uid('d'), v:2, demo:true, maj: maintenant - k, num:'DEMO-' + (k+1), date:aujourdhui(), client:x.client, tel:x.tel, lieu:x.lieu,
+      appareils, params, devis:{ objet:x.objet, remise:0, note:reglages.note, bilan:true, noteCalcul:true, lines:lignes, sig: a ? JSON.stringify(a.lignes.map(l=>[l.des,l.qte,l.pu])) : '' } });
+  });
+  dossiers.sort((a,b) => (b.maj||0)-(a.maj||0));
+  ecrire(K.dos, dossiers); vue('clients'); toast('4 clients d\'exemple ajoutés : touchez-en un pour voir son devis');
+}
+function retirerDemo(){
+  if(!confirm('Retirer les clients d\'exemple ?')) return;
+  const ouvert = S && dossiers.find(d => d.id===S.id && d.demo);
+  dossiers = dossiers.filter(d => !d.demo); ecrire(K.dos, dossiers);
+  if(ouvert){ clearTimeout(save._t); chargerEtude(nouvelleEtude()); }
+  renderDossiers(); toast('Exemples retirés');
+}
 function renderAccueil(){
+  $('boxDemo').innerHTML = dossiers.filter(d => !d.demo).length || aDemo() ? '' : `<div class="demo"><b>👋 Nouveau sur SolaDima ?</b>
+    <p>Découvrez l'application avec 4 clients d'exemple : une maison, une boutique, un kit 12 V de village et une villa climatisée, avec leurs devis.</p>
+    <button class="btn" onclick="chargerDemo()">▶ Voir la démo</button></div>`;
   $('boxInstall').innerHTML = estInstallee() ? '' : `<div class="install"><div class="tx"><b>📲 Installez SolaDima</b>Sur votre téléphone, comme une vraie application. Elle marche aussi sans internet.</div><button onclick="installer()">Installer</button></div>`;
   const L = [...dossiers].sort((a,b)=>(b.maj||0)-(a.maj||0)).slice(0,3);
   $('accRecents').style.display = L.length ? 'block' : 'none';

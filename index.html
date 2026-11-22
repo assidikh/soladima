@@ -143,6 +143,12 @@
   .graph .besoin{ stroke:var(--text); stroke-width:1.5; stroke-dasharray:5 4; }
   .graph .c-solaire{ fill:none; stroke:var(--s1); stroke-width:2; }
   .graph .c-groupe{ fill:none; stroke:var(--s2); stroke-width:2; }
+  .repart{ display:flex; align-items:center; gap:8px; margin-top:8px; font-size:13px; }
+  .repart span{ white-space:nowrap; color:var(--muted); } .repart b{ color:var(--text); }
+  .repart input[type=range]{ flex:1; min-width:0; accent-color:var(--primary); height:28px; }
+  .sugg{ margin-top:10px; padding:9px 11px; border-radius:12px; background:var(--bg); border:1px dashed var(--primary); font-size:13px; line-height:1.45; }
+  .sugg .btn{ display:block; margin-top:6px; }
+  input.auto{ font-style:italic; color:var(--muted); }
   #sheet h4{ margin:14px 0 4px; }
 </style>
 <!-- Bibliothèques intégrées : l'appli fonctionne sans internet -->

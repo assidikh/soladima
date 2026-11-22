@@ -55,7 +55,7 @@ function nomAuto(m){
     case 'batterie': return `Batterie ${m.tech==='lithium'?'lithium LiFePO4':'gel / AGM'} ${vFr(m.v)} V ${m.ah} Ah`;
     case 'regulateur': return `Régulateur solaire ${m.techno==='pwm'?'PWM':'MPPT'} ${m.a} A${m.techno==='mppt'?` (${m.vocMax} V max)`:''}`;
     case 'convertisseur': return `Convertisseur ${m.onde==='modifie'?'onde modifiée':'pur sinus'} ${m.w} W ${m.v} V`;
-    case 'hybride': return `Onduleur hybride ${m.w} W ${m.v} V (MPPT ${m.pvMax} W intégré)`;
+    case 'hybride': return `Onduleur hybride ${m.w} W ${m.v} V pur sinus (MPPT ${m.pvMax} W intégré)`;
     case 'cable': return `Câble ${m.usage==='pv'?'solaire':m.usage==='ac'?'électrique':'batterie'} ${vFr(m.section)} mm² (mètre)`;
     case 'protection': return ({
       fusible_dc:`Fusible / disjoncteur DC ${m.calibre} A (batterie)`, sect_pv:`Interrupteur-sectionneur DC ${m.calibre} A (panneaux)`,
@@ -244,14 +244,16 @@ function kit12V(B, P, c, mat){
 // Architecture 2 : régulateur + convertisseur séparé
 function regulateurConvertisseur(B, P, c, mat){
   const r = nouveauResultat('regconv', 'Régulateur + convertisseur'), T = TECH[P.tech];
-  r.description = 'Panneaux → régulateur (PWM ou MPPT) → batteries → convertisseur séparé 230 V.';
+  r.description = 'Panneaux → régulateur (PWM ou MPPT) → batteries → convertisseur séparé 230 V (pur sinus de préférence).';
   const Vs = P.vsys==='auto' ? [12,24,48] : [+P.vsys];
   let best = null; const echecs = new Set();
   Vs.forEach(V => {
-    const convs = mat.filter(m => m.type==='convertisseur' && cls(m.v)===V && m.w>0)
+    const aptes = mat.filter(m => m.type==='convertisseur' && cls(m.v)===V && m.w>0)
       .filter(m => (B.moteur ? m.onde!=='modifie' : true))
-      .filter(m => m.w*DECLASSEMENT_OND >= B.Ppointe && m.w*(m.surge||2) >= B.Pstart)
-      .sort((a,b) => cout(a)-cout(b));
+      .filter(m => m.w*DECLASSEMENT_OND >= B.Ppointe && m.w*(m.surge||2) >= B.Pstart);
+    // Pur sinus en priorité : l'onde modifiée n'est retenue que si aucun pur sinus ne convient
+    const purs = aptes.filter(m => m.onde!=='modifie');
+    const convs = (purs.length ? purs : aptes).sort((a,b) => cout(a)-cout(b));
     if(!convs.length){ echecs.add(V); return; }
     const conv = convs[0];
     const cand = avecRegulateur(nouveauResultat(r.id, r.nom), B, P, c, mat, chaine(B, conv.eta||0.9, conv.idle||10), T, V, { m:conv, n:1 });
@@ -316,7 +318,7 @@ function hybride(B, P, c, mat, secours){
   const r = nouveauResultat(secours ? 'secours' : 'hybride', secours ? 'Hybride + réseau SNE ou groupe' : 'Onduleur hybride tout-en-un');
   r.description = secours
     ? 'Onduleur hybride ; le réseau ou le groupe recharge les batteries et prend le relais quand le soleil ne suffit pas.'
-    : 'Un seul appareil : régulateur MPPT, chargeur et onduleur. Pas de régulateur ni de convertisseur à acheter en plus.';
+    : 'Un seul appareil : régulateur MPPT, chargeur et onduleur à sortie pur sinus. Pas de régulateur ni de convertisseur à acheter en plus.';
   if(secours && !P.reseau){ r.raisons.push('Le client n\'a ni réseau SNE ni groupe électrogène (réglage « Secours disponible »).'); return r; }
   const T = TECH[P.tech], Y = rendementMPPT(c, P), Ydim = secours ? sum(Y)/12 : Math.min(...Y);
   const hybs = mat.filter(m => m.type==='hybride' && m.w>0 && (P.vsys==='auto' || cls(m.v)===+P.vsys));

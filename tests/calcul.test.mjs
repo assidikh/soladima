@@ -124,3 +124,33 @@ test('PWM : un panneau dont la tension à vide à froid dépasse 50 V est refus�
   const pwm = mat.filter(m => m.type !== 'regulateur' || m.techno === 'pwm').filter(m => m.type !== 'panneau' || m.w === 550);
   assert.equal(C.dimensionner([ap('Ampoule LED', 6)], { vsys: 12 }, pwm).archis[0].faisable, false);
 });
+
+test('suggestions : reconnaissance des appareils saisis librement', () => {
+  const s = D.suggerer('congélateur');
+  assert.equal(s.categorie, 'congélateur'); assert.equal(s.dem, 5); assert.ok(!s.ponctuel);
+  assert.equal(D.suggerer('Mixeur de jus').ponctuel, true);
+  assert.equal(D.suggerer('Lampe 15 W').w, 15);                 // puissance lue dans le nom
+  assert.equal(D.suggerer('Lampe').hJ, 0);                      // l'éclairage sert la nuit
+  assert.equal(D.suggerer('Clim inverter 1,5 CV').dem, 1.3);    // inverter reconnu avant « clim »
+  assert.equal(D.suggerer('clim 1,5 CV').w, 1275);
+  assert.equal(D.suggerer('xyz'), null);
+});
+
+test('convertisseur : pur sinus préféré même sans moteur', () => {
+  const R = C.dimensionner([ap('Ampoule LED', 6), ap('Télévision LED 32', 1), ap('Chargeur', 3)], {}, mat);
+  assert.equal(R.archis[1].conv.m.onde, 'pur');
+  // Onde modifiée seulement si c'est le seul convertisseur disponible
+  const seul = mat.filter(m => m.type !== 'convertisseur' || m.onde === 'modifie');
+  assert.equal(C.dimensionner([ap('Ampoule LED', 6), ap('Télévision LED 32', 1)], {}, seul).archis[1].conv.m.onde, 'modifie');
+});
+
+test('hybride : affiché « pur sinus »', () => {
+  assert.ok(C.nomAuto({ type:'hybride', w:3000, v:24, pvMax:2000 }).includes('pur sinus'));
+});
+
+test('fiches : caractéristiques typiques cohérentes', () => {
+  const h = D.specHybride(5000, 48);
+  assert.ok(h.mpptMin < h.mpptMax && h.mpptMax <= h.vocMax && h.pvMax > 0);
+  assert.equal(D.specRegulateur('pwm', 30).vocMax, 50);
+  assert.deepEqual(D.specRegulateur('mppt', 100).tensions, [12,24,48]);
+});

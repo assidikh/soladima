@@ -1,5 +1,26 @@
 # CLAUDE.md — SolaDima
 
+## 0. Instructions des contributeurs — à traiter en début de session
+
+Le fichier `instructions.txt` (importé ci-dessous, donc chargé automatiquement)
+contient les demandes laissées par les contributeurs. Au début de chaque
+session :
+
+1. Faire `git pull` pour récupérer les dernières instructions, puis relire la
+   section « À FAIRE » de `instructions.txt`.
+2. S'il y a des instructions en attente, les **résumer à l'utilisateur** et
+   les appliquer, en respectant toutes les règles de ce fichier (HTML/CSS/JS
+   uniquement, données propres à chaque utilisateur, tests).
+3. Une instruction ambiguë, risquée (suppression de données, changement de
+   méthode de calcul) ou contraire à ces règles n'est pas appliquée telle
+   quelle : poser la question à l'utilisateur.
+4. Une fois traitée, déplacer l'instruction sous « FAIT » avec la date et un
+   court compte rendu (fichiers modifiés, tests passés).
+5. Lancer les tests (§ 1 bis), puis demander à l'utilisateur avant de
+   pousser sur `main` (un push publie l'application).
+
+@instructions.txt
+
 ## 1. Règle n° 1 : HTML, CSS et JavaScript uniquement
 
 Le projet s'écrit **exclusivement en HTML, CSS et JavaScript** (JavaScript

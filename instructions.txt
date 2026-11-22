@@ -1,0 +1,33 @@
+INSTRUCTIONS POUR CLAUDE CODE — SolaDima
+========================================
+
+Ce fichier est lu automatiquement par Claude Code au début de chaque session
+(il est importé dans CLAUDE.md). Tout contributeur peut y laisser des
+demandes : corrections, nouvelles fonctions, appareils à ajouter, prix,
+remarques de terrain…
+
+COMMENT ÉCRIRE UNE INSTRUCTION
+- Ajoutez-la sous « À FAIRE », une instruction par paragraphe.
+- Commencez par la date, votre nom, puis la demande, en français simple.
+- Donnez des exemples concrets si possible (appareil, valeurs, ville…).
+- Faites un commit et un push : la prochaine session la traitera.
+
+Exemple :
+  [2026-11-25] Aboubakar : ajouter l'appareil « Climatiseur 2 CV inverter »
+  à la liste des appareils courants, environ 1 300 W en moyenne.
+
+Une fois une instruction traitée, Claude Code la déplace sous « FAIT » avec la
+date et un court compte rendu. Ne supprimez pas ce qui est sous « FAIT » :
+c'est l'historique des demandes.
+
+------------------------------------------------------------------------
+À FAIRE
+------------------------------------------------------------------------
+
+(aucune instruction en attente)
+
+------------------------------------------------------------------------
+FAIT
+------------------------------------------------------------------------
+
+[2026-11-22] Création de ce fichier.

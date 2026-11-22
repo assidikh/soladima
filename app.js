@@ -398,7 +398,7 @@ function renderComparaison(r){
                    : `<small>✖ ${esc(a.raisons.join(' '))}</small>`}
     </div>`).join('')}`;
 }
-const ficheDepliable = m => `<details class="fiche-mini"><summary>Voir la fiche ${iconeMat(m)}</summary>${ficheMateriel(m)}</details>`;
+const ficheDepliable = m => `<details class="fiche-mini"><summary>Voir la fiche</summary>${ficheMateriel(m)}</details>`;
 function renderDetail(r){
   const a = r.choisie, box = $('sysResultats');
   if(!a){ box.innerHTML = '<h2>Système proposé</h2><div class="alert">Aucune solution possible avec votre matériel actuel. Ajoutez des références dans l\'onglet Matériel.</div>'; return; }
@@ -407,13 +407,13 @@ function renderDetail(r){
   const manque = a.lignes.filter(l=>!l.pu).length;
   box.innerHTML = `<h2>Système proposé : ${esc(a.nom)}</h2>
     <p class="muted small" style="margin:0 0 6px">${esc(a.description)}</p>
-    <div class="res"><div class="ic">🔆</div><div class="tx"><b>${pv.N} × ${esc(pv.m.nom)}</b><small>${fmt(pv.Wc)} Wc · ${pv.ns} en série × ${pv.np} en parallèle${a.reg&&a.reg.n>1?` (répartis sur ${a.reg.n} régulateurs)`:''} · inclinaison ${c.angle}° plein sud<br>
+    <div class="res"><div class="ic">${vignette(pv.m)}</div><div class="tx"><b>${pv.N} × ${esc(pv.m.nom)}</b><small>${fmt(pv.Wc)} Wc · ${pv.ns} en série × ${pv.np} en parallèle${a.reg&&a.reg.n>1?` (répartis sur ${a.reg.n} régulateurs)`:''} · inclinaison ${c.angle}° plein sud<br>
       Tension d'une chaîne : ${f1(pv.vocF*pv.ns)} V à vide par matin froid (max ${vMax} V) · ${f1(pv.vmpC*pv.ns)} V en plein soleil à ${Math.round(pv.tcMax)} °C${pv.mode==='PWM'?`<br>Régulateur PWM : ${Math.round(pv.ratio*100)} % de la puissance des panneaux est utilisée`:''}</small>${ficheDepliable(pv.m)}</div></div>
-    <div class="res"><div class="ic">🔋</div><div class="tx"><b>${a.bat.units} × ${esc(a.bat.m.nom)}</b><small>${a.bat.series>1?`${a.bat.series} en série × `:''}${a.bat.par} en parallèle · ${f2(a.bat.Wh/1000)} kWh installés · ${f2(a.bat.usable/1000)} kWh utiles nécessaires (${AUTONOMIES.find(x=>x[0]===r.P.aut)?.[1]||''})<br>
+    <div class="res"><div class="ic">${vignette(a.bat.m)}</div><div class="tx"><b>${a.bat.units} × ${esc(a.bat.m.nom)}</b><small>${a.bat.series>1?`${a.bat.series} en série × `:''}${a.bat.par} en parallèle · ${f2(a.bat.Wh/1000)} kWh installés · ${f2(a.bat.usable/1000)} kWh utiles nécessaires (${AUTONOMIES.find(x=>x[0]===r.P.aut)?.[1]||''})<br>
       Décharge ${Math.round(T.dod*100)} % max · courant de décharge ${arr(a.bat.Idech)} A · de charge ${arr(a.bat.Ich)} A</small>${ficheDepliable(a.bat.m)}</div></div>
-    ${a.hyb?`<div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(a.hyb.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.hyb.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour) · système ${a.V} V</small>${ficheDepliable(a.hyb.m)}</div></div>`:''}
-    ${a.reg?`<div class="res"><div class="ic">🎛️</div><div class="tx"><b>${a.reg.n} × ${esc(a.reg.m.nom)}</b><small>Courant de charge des panneaux : ${arr(a.reg.Ich)} A · système ${a.V} V</small>${ficheDepliable(a.reg.m)}</div></div>`:''}
-    ${a.conv?`<div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(a.conv.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.conv.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour)</small>${ficheDepliable(a.conv.m)}</div></div>`:''}
+    ${a.hyb?`<div class="res"><div class="ic">${vignette(a.hyb.m)}</div><div class="tx"><b>${esc(a.hyb.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.hyb.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour) · système ${a.V} V</small>${ficheDepliable(a.hyb.m)}</div></div>`:''}
+    ${a.reg?`<div class="res"><div class="ic">${vignette(a.reg.m)}</div><div class="tx"><b>${a.reg.n} × ${esc(a.reg.m.nom)}</b><small>Courant de charge des panneaux : ${arr(a.reg.Ich)} A · système ${a.V} V</small>${ficheDepliable(a.reg.m)}</div></div>`:''}
+    ${a.conv?`<div class="res"><div class="ic">${vignette(a.conv.m)}</div><div class="tx"><b>${esc(a.conv.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.conv.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour)</small>${ficheDepliable(a.conv.m)}</div></div>`:''}
     <div class="bignum" style="margin-top:10px"><div><small>Consommation des appareils</small><b>${f2(a.besoins.E/1000)} kWh/j</b></div><div><small>À fournir par les panneaux</small><b>${f2(a.besoinNet/1000)} kWh/j</b></div>
       <div><small>Production en ${SC.MOIS[a.moisCritique].toLowerCase()} (mois critique)</small><b>${f2(a.prodMois[a.moisCritique]/1000)} kWh/j</b></div><div><small>Production sur l'année</small><b>${fmt(Math.round(a.prodAn))} kWh</b></div></div>
     ${manque?`<div class="alert">⚠ ${manque} ligne(s) sans prix : renseignez vos prix dans l'onglet Matériel.</div>`:''}
@@ -564,7 +564,7 @@ function ouvrirPickerMateriel(){
 function renderPicker(){
   const q = ($('rechPk')?.value||'').toLowerCase();
   const L = materiel.filter(m=>m.nom.toLowerCase().includes(q));
-  $('listePk').innerHTML = L.length ? L.map(m=>`<div class="art" onclick="ajouterDepuisMateriel('${m.id}')"><span class="icm">${iconeMat(m)}</span><div class="info"><b>${esc(m.nom)}</b><small>${esc(TYPES[m.type])}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div><span class="iconbtn">＋</span></div>`).join('') : '<div class="empty">Aucun article.</div>';
+  $('listePk').innerHTML = L.length ? L.map(m=>`<div class="art" onclick="ajouterDepuisMateriel('${m.id}')">${vignette(m)}<div class="info"><b>${esc(m.nom)}</b><small>${esc(TYPES[m.type])}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div><span class="iconbtn">＋</span></div>`).join('') : '<div class="empty">Aucun article.</div>';
 }
 function ajouterDepuisMateriel(id){
   const m = materiel.find(x=>x.id===id); if(!m) return;
@@ -595,6 +595,14 @@ function iconeMat(m){
   }
 }
 const vf = x => String(x).replace('.', ',');
+/* Photos : celle de l'installateur si elle existe, sinon la photo libre par défaut (Wikimedia Commons) */
+function photoMat(m){ if(m.photo) return { src:m.photo, perso:true }; const k = DONNEES.cleImage(m), i = k && DONNEES.IMAGES[k]; return i ? { src:i.fichier, ...i } : null; }
+function vignette(m){ const p = photoMat(m); return p ? `<img class="vig" src="${p.src}" alt="" loading="lazy" />` : `<span class="icm">${iconeMat(m)}</span>`; }
+function figurePhoto(m){
+  const p = photoMat(m); if(!p) return '';
+  return `<figure class="photo"><img src="${p.src}" alt="${esc(m.nom)}" loading="lazy" /><figcaption>${p.perso ? 'Photo de votre article'
+    : `Photo d'illustration : ${esc(p.auteur)} · ${esc(p.licence)} · <a href="${p.source}" target="_blank" rel="noopener">Wikimedia Commons</a>`}</figcaption></figure>`;
+}
 function descriptionMat(m){
   switch(m.type){
     case 'panneau': return m.cellules===36
@@ -640,6 +648,7 @@ function caracteristiquesMat(m){
 function ficheMateriel(m, avecBouton){
   const lo = +m.prixMin||0, hi = +m.prixMax||0;
   return `<div class="fiche">
+    ${figurePhoto(m)}
     <p>${esc(descriptionMat(m))}</p>
     ${caracteristiquesMat(m).map(([k,v]) => `<div class="resume-l"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
     <div class="resume-l"><span>Prix${m.type==='cable'?' au mètre':''}</span><span><b>${lo||hi ? fmt(lo)+' – '+fmt(hi)+' F CFA' : 'à renseigner'}</b></span></div>
@@ -660,7 +669,7 @@ function renderMateriel(){
     <button class="btn" onclick="ouvrirMateriel(null)">＋ Ajouter un article</button>
     ${Object.keys(TYPES).map(t=>{
       const L = mat(t).sort((a,b)=>String(a.techno||a.tech||a.genre||a.usage||'').localeCompare(String(b.techno||b.tech||b.genre||b.usage||'')) || (a.v||0)-(b.v||0) || ordreMat(a)-ordreMat(b) || a.nom.localeCompare(b.nom,'fr'));
-      return `<details class="grpd"><summary class="grp">${TYPES[t]} <span class="muted">(${L.length})</span></summary>` + (L.length ? L.map(m=>`<details class="artd"><summary class="art"><span class="icm">${iconeMat(m)}</span><div class="info"><b>${esc(m.nom)}</b><small>${esc(specTexte(m))}</small></div><div class="tt ${m.prixMax||m.prixMin?'':'miss'} ${m.prixDefaut?'indic':''}">${m.prixMax||m.prixMin?fmt(m.prixMin)+'<br>'+fmt(m.prixMax):'prix ?'}</div></summary>${ficheMateriel(m, true)}</details>`).join('') : '<div class="empty small">Aucun article.</div>') + '</details>';
+      return `<details class="grpd"><summary class="grp">${TYPES[t]} <span class="muted">(${L.length})</span></summary>` + (L.length ? L.map(m=>`<details class="artd"><summary class="art">${vignette(m)}<div class="info"><b>${esc(m.nom)}</b><small>${esc(specTexte(m))}</small></div><div class="tt ${m.prixMax||m.prixMin?'':'miss'} ${m.prixDefaut?'indic':''}">${m.prixMax||m.prixMin?fmt(m.prixMin)+'<br>'+fmt(m.prixMax):'prix ?'}</div></summary>${ficheMateriel(m, true)}</details>`).join('') : '<div class="empty small">Aucun article.</div>') + '</details>';
     }).join('')}`;
 }
 let editMat = null;
@@ -726,8 +735,26 @@ function renderChampsMat(){
   h += `<div class="row"><div><label>Prix minimum (F CFA${e.type==='cable'?'/m':''})</label><input id="em_prixMin" class="${ital('prixMin')}" type="number" inputmode="decimal" value="${e.prixMin||''}" placeholder="0" /></div>
     <div><label>Prix maximum (F CFA${e.type==='cable'?'/m':''})</label><input id="em_prixMax" class="${ital('prixMax')}" type="number" inputmode="decimal" value="${e.prixMax||''}" placeholder="0" /></div></div>
     ${e.prixDefaut || (e._auto||[]).includes('prixMin') ? '<p class="muted small" style="margin:4px 0 0">Prix indicatifs du marché, proposés d\'après les caractéristiques : remplacez-les par vos prix.</p>' : ''}`;
+  const p = photoMat(e);
+  h += `<label>Photo</label><div class="photo-edit">${p ? `<img src="${p.src}" alt="" />` : ''}<div>
+      <button class="btn sec small" onclick="$('emPhoto').click()">📷 ${e.photo ? 'Changer la photo' : 'Mettre la photo de mon article'}</button>
+      ${e.photo ? '<button class="btn sec small" style="margin-top:6px" onclick="retirerPhotoMat()">Retirer ma photo</button>' : ''}
+      <input type="file" id="emPhoto" accept="image/*" style="display:none" onchange="choisirPhotoMat(event)" /></div></div>`;
   $('emChamps').innerHTML = h;
 }
+// Photo de l'installateur : réduite à 320 px (JPEG) pour ne pas remplir la mémoire du téléphone
+function choisirPhotoMat(ev){
+  const f = ev.target.files[0]; if(!f) return; lireChampsMat();
+  const r = new FileReader();
+  r.onload = e => { const img = new Image(); img.onload = () => {
+    const k = Math.min(1, 320/Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
+    editMat.photo = c.toDataURL('image/jpeg', 0.75); renderChampsMat(); toast('Photo ajoutée : pensez à enregistrer'); };
+    img.src = e.target.result; };
+  r.readAsDataURL(f);
+}
+function retirerPhotoMat(){ lireChampsMat(); delete editMat.photo; renderChampsMat(); }
 // Saisie dans une fiche : un champ « pilote » recalcule les valeurs proposées ; un champ modifié à la main n'est plus recalculé
 document.addEventListener('input', ev => {
   const t = ev.target; if(!editMat || !t.id || !t.id.startsWith('em_') || !$('emChamps')?.contains(t)) return;
@@ -975,6 +1002,7 @@ function renderAccueil(){
   $('accRecents').innerHTML = '<h2>Derniers clients</h2>' + L.map(d => `<div class="art" onclick="ouvrirDossier('${d.id}')"><div class="info"><b>${esc(d.client||'Sans nom')}</b><small>${esc([d.lieu, (d.params||{}).ville].filter(Boolean).join(', '))}</small></div><span class="chev muted">›</span></div>`).join('');
 }
 function initPlus(){
+  $('creditsPhotos').innerHTML = '<p>Photos d\'illustration sous licence libre, provenant de Wikimedia Commons :</p>' + Object.entries(DONNEES.IMAGES).map(([k,i]) => `<div>${esc(k.replace(/_/g,' '))} : ${esc(i.auteur)}, ${esc(i.licence)} — <a href="${i.source}" target="_blank" rel="noopener">source</a></div>`).join('');
   $('rNom').value = reglages.nom; $('rAdresse').value = reglages.adresse; $('rPied').value = reglages.pied; $('rNote').value = reglages.note; $('rIndicatif').value = reglages.indicatif; majLogo();
   $('dfVille').innerHTML = SC.villes().map(v => `<option ${v===reglages.ville?'selected':''}>${esc(v)}</option>`).join('');
   $('dfTech').value = reglages.tech; $('dfAut').value = String(reglages.aut);

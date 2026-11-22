@@ -180,6 +180,15 @@
   .resume-l{ display:flex; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:15px; }
   .resume-l:last-child{ border-bottom:0; } .resume-l span:first-child{ color:var(--muted); }
   .icm{ font-size:22px; width:30px; text-align:center; flex:none; }
+  .vig{ width:46px; height:46px; object-fit:cover; border-radius:10px; flex:none; background:#fff; border:1px solid var(--line); }
+  .res .ic .vig{ width:44px; height:44px; }
+  .fiche .photo{ margin:0 0 10px; text-align:center; }
+  .fiche .photo img{ max-width:100%; max-height:200px; border-radius:10px; background:#fff; }
+  .fiche .photo figcaption{ font-size:11px; color:var(--muted); margin-top:4px; line-height:1.4; }
+  .fiche .photo a{ color:var(--primary); }
+  .photo-edit{ display:flex; gap:12px; align-items:center; }
+  .photo-edit img{ width:84px; height:84px; object-fit:cover; border-radius:12px; border:1px solid var(--line); background:#fff; }
+  .photo-edit .btn{ display:block; }
   details.artd > summary{ list-style:none; } details.artd > summary::-webkit-details-marker{ display:none; }
   details.artd[open] > summary{ border-bottom:0; }
   details.artd .tt{ text-align:right; font-size:13px; line-height:1.3; }
@@ -835,6 +844,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         Contact : <a href="mailto:aboubakarassidikh@gmail.com">aboubakarassidikh@gmail.com</a><br>
         © 2026 SolaDima. Tous droits réservés.<br>
         <span class="muted">L'utilisation de l'application est autorisée. Le code, les textes et les données ne peuvent être copiés, modifiés ni redistribués sans l'accord écrit de l'auteur.</span></p>
+      <details><summary>Crédits des photos</summary><div id="creditsPhotos" class="small muted"></div></details>
     </div>
     <div class="card">
       <h2>À savoir</h2>

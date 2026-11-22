@@ -50,7 +50,9 @@ efface aussi celles de SolaDima.
    Pour la solution retenue : câblage des panneaux, batteries, production mois
    par mois, câbles et protections, comparaison avec un groupe électrogène
    sur 10 ans, et **schéma de montage** avec **plan d'installation**
-   (exportables en PDF, ou joints au devis).
+   (exportables en PDF, ou joints au devis). En option, le schéma inclut
+   l'installation des appareils : circuits d'éclairage, de prises et circuits
+   dédiés, avec disjoncteurs ou fusibles et sections de câbles.
 3. **Devis** : lignes et prix, remise, conditions ; export PDF / WhatsApp avec
    le bilan de consommation et la note de calcul.
 4. **Matériel** : votre catalogue, avec une icône et une fiche descriptive

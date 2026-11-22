@@ -219,7 +219,26 @@ function prixMarche(m){
 // Prix indicatif d'un groupe électrogène, par kVA (petits groupes à essence, marché tchadien)
 const PRIX_GROUPE_KVA = 80000;
 
-const API = { prixMarche, PRIX_GROUPE_KVA, specCable, PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
+/* ------------------------------------------------------------------
+   Démo : quatre clients fictifs pour découvrir l'application.
+   Appareils : [début du nom d'un appareil courant, quantité]
+   ------------------------------------------------------------------ */
+const DEMO = [
+  { client:'Démo : Famille Mahamat', tel:'66 00 00 01', lieu:'Farcha', ville:"N'Djaména", tech:'lithium',
+    objet:'Installation solaire pour une maison familiale',
+    appareils:[['Ampoule LED',8],['Ventilateur sur pied',3],['Télévision LED 32',1],['Décodeur',1],['Réfrigérateur 150',1],['Chargeur',4],['Fer à repasser',1]] },
+  { client:'Démo : Boutique Achta', tel:'66 00 00 02', lieu:'Grand marché', ville:'Moundou', tech:'lithium',
+    objet:'Alimentation solaire d\'une boutique',
+    appareils:[['Tube LED',6],['Congélateur',1],['Ventilateur de plafond',2],['Ordinateur portable',1],['Box',1],['Caméra',2]] },
+  { client:'Démo : Kit village Djimet', tel:'66 00 00 03', lieu:'Village de Kim', ville:'Bongor', tech:'gel', aut:0.5,
+    objet:'Kit solaire 12 V pour l\'éclairage et la télévision',
+    appareils:[['Ampoule LED',5],['Télévision LED 32',1],['Chargeur',3],['Ventilateur 12 V',1]] },
+  { client:'Démo : Villa Abdelkerim', tel:'66 00 00 04', lieu:'Klémat', ville:"N'Djaména", tech:'lithium', reseau:true, coupure:8,
+    objet:'Solaire avec secours SNE pour une villa climatisée',
+    appareils:[['Ampoule LED',14],['Ventilateur de plafond',4],['Télévision LED 43',2],['Réfrigérateur 150',1],['Congélateur',1],['Climatiseur split 1,5 CV inverter',1],['Pompe',1],['Box',1]] }
+];
+
+const API = { DEMO, prixMarche, PRIX_GROUPE_KVA, specCable, PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
 G.DONNEES = API;
 if(typeof module==='object' && module.exports) module.exports = API;
 })(typeof globalThis!=='undefined' ? globalThis : this);

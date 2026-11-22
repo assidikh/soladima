@@ -1,5 +1,5 @@
 // Changez ce numéro à chaque mise à jour de l'application (v1 -> v2 -> v3...)
-const VERSION = 'v5';
+const VERSION = 'v6';
 const PREFIX = 'soladima-';
 const CACHE = PREFIX + VERSION;
 const FILES = ['./', './index.html', './app.js', './calcul.js', './climat.js', './donnees.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];

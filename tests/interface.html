@@ -108,6 +108,17 @@ fr.onload = () => {
     fw.value = 450; fw.dispatchEvent(new Event('input', { bubbles:true }));
     log(+d.getElementById('em_voc').value === 50.2 && +d.getElementById('em_vmp').value === 41.4, 'valeur saisie à la main conservée, les autres recalculées');
     w.closeSheet();
+    w.confirm = () => true;
+    log(!!d.querySelector('footer.credit .lien-demo') && d.querySelector('header .copy').textContent.includes('2026'), 'bouton Démo en bas de page, © à côté du titre');
+    const avant = w.eval('dossiers').length; w.chargerDemo();
+    const demos = w.eval('dossiers').filter(x => x.demo);
+    log(demos.length === 4 && w.eval('dossiers').length === avant + 4, 'démo : 4 clients d\'exemple ajoutés sans toucher aux autres');
+    log(demos.every(x => x.devis.lines.length > 3 && x.devis.lines.every(l => l.pu > 0)), 'démo : chaque exemple a un devis chiffré');
+    log(d.querySelectorAll('#listeDos .badge.demo-b').length === 4 && !!d.querySelector('#boxRetirerDemo button'), 'démo : exemples marqués, bouton « Retirer les exemples »');
+    w.ouvrirDossier(demos.find(x => /village/.test(x.client)).id); w.vue('systeme');
+    log(w.calculer().choisie && w.calculer().choisie.id === 'kit12', 'démo village : kit 12 V retenu');
+    w.retirerDemo();
+    log(w.eval('dossiers').length === avant && !w.eval('dossiers').some(x => x.demo), 'démo retirée');
     w.nouveauClient();
     log(w.eval('S').appareils.length === 0 && d.getElementById('v-client').classList.contains('active'), 'nouveau client : fiche vide');
     w.vue('clients');

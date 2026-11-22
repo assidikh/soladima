@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><title>Test de l'interface SolaDima</title>
+<style>body{font:14px system-ui;margin:16px;background:#fff;color:#111} .ok{color:#15803d} .ko{color:#b91c1c;font-weight:700} iframe{width:412px;height:800px;border:1px solid #ccc}</style></head>
+<body>
+<h1>Test de l'interface</h1>
+<p>Ouvrir via le serveur de développement : http://localhost:8080/tests/interface.html. Le test charge l'application avec des données
+de la version 1 (anciens dossiers et ancien matériel), vérifie la migration puis parcourt les onglets.</p>
+<pre id="out">en cours…</pre>
+<iframe id="app"></iframe>
+<script>
+// Prix fictifs plausibles (F CFA) pour l'aperçu des graphiques
+const SolaCalculPrix = m => ({ panneau:120*(m.w||0), batterie:(m.tech==='lithium'?280:110)*(m.v||0)*(m.ah||0), regulateur:(m.techno==='pwm'?600:2200)*(m.a||0), convertisseur:90*(m.w||0), hybride:100*(m.w||0), cable:180*(m.section||0), protection:9000, autre:25000 })[m.type] || 10000;
+const out = [], log = (ok, msg) => out.push((ok ? '✔ ' : '✖ ') + msg);
+// Données au format de la version 1 (avant cette mise à jour)
+const V1 = {
+  soladima_reglages_v1: { nom:'Test Solaire', adresse:'', pied:'', note:'', indicatif:'235', logo:'', hsp:5, pr:0.75, etaInv:0.9, marge:0.1, simul:0.8 },
+  soladima_materiel_v1: [
+    { id:'m1', type:'panneau', w:400, prix:85000, nom:'Panneau solaire 400 Wc' },
+    { id:'m2', type:'batterie', tech:'lithium', v:25.6, ah:100, prix:900000, nom:'Batterie lithium LiFePO4 25,6 V 100 Ah' },
+    { id:'m3', type:'onduleur', w:3000, v:24, prix:350000, nom:'Onduleur pur sinus 3000 W 24 V' },
+    { id:'m4', type:'regulateur', a:60, prix:120000, nom:'Régulateur solaire MPPT 60 A' },
+    { id:'m5', type:'autre', nom:'Installation et mise en service', auto:'un', prix:150000 }
+  ],
+  soladima_etat_v1: { id:null, num:'SD-001', date:'2026-11-01', client:'Client test', tel:'66000000', lieu:'Farcha',
+    appareils:[ { nom:'Ampoule LED 9 W', qte:8, w:9, h:5, per:'nuit', surge:1 }, { nom:'Réfrigérateur 150 W', qte:1, w:150, h:8, per:'mixte', surge:3 },
+                { nom:'Ventilateur sur pied 60 W', qte:3, w:60, h:8, per:'mixte', surge:1 } ],
+    params:{ hsp:5, pr:.75, etaInv:.9, marge:.1, simul:.8, tech:'lithium', aut:1, vsys:'auto', panId:'auto', batId:'auto' },
+    devis:{ objet:'Test', remise:0, note:'', bilan:true, lines:[], sig:'' } },
+  soladima_dossiers_v1: []
+};
+for(const k in V1) localStorage.setItem(k, JSON.stringify(V1[k]));
+const fr = document.getElementById('app');
+fr.onload = () => {
+  const w = fr.contentWindow, d = w.document, erreurs = [];
+  w.addEventListener('error', e => erreurs.push(e.message));
+  try{
+    const m = JSON.parse(w.localStorage.getItem('soladima_materiel_v1'));
+    log(m.find(x=>x.id==='m3').type === 'convertisseur', 'ancien « onduleur » devenu « convertisseur »');
+    log(m.find(x=>x.id==='m1').voc > 0, 'panneau 400 Wc complété (Voc ' + m.find(x=>x.id==='m1').voc + ' V)');
+    log(m.find(x=>x.id==='m1').prix === 85000, 'prix de l\'utilisateur conservé');
+    log(m.some(x=>x.type==='hybride') && m.some(x=>x.type==='protection'), 'catalogue complété (hybrides, protections)');
+    const S = w.eval('S');
+    log(S.v === 2 && S.appareils[0].hN === 5 && S.appareils[0].hJ === 0, 'appareil « nuit » 5 h → 0 h jour + 5 h nuit');
+    log(S.appareils[1].hJ === 4 && S.appareils[1].dem === 5, 'frigo « mixte » 8 h → 4 + 4 h, compresseur ×5');
+    log(S.params.aut === 1, 'réserve choisie par l\'utilisateur conservée (1 jour)');
+    for(const v of ['besoins','systeme','devis','materiel','plus']){
+      w.vue(v);
+      log(d.getElementById('v-'+v).classList.contains('active'), 'onglet ' + v + ' affiché');
+    }
+    w.vue('systeme');
+    const r = w.calculer();
+    log(!!r.choisie, 'solution retenue : ' + (r.choisie && r.choisie.nom));
+    log(d.querySelectorAll('.solu').length === 4, '4 solutions comparées');
+    log(!!d.querySelector('#sysProduction svg .barre'), 'graphique de production affiché');
+    log(!!d.querySelector('#sysEco'), 'comparaison groupe affichée');
+    w.setParam('reseau', true);
+    log(w.calculer().archis[3].faisable, 'solution avec secours possible quand le réseau est coché');
+    w.choisirArchi('regconv');
+    w.vue('devis'); w.regenererLignes(false);
+    log(w.eval('S').devis.lines.some(l=>/Convertisseur/.test(l.des)) && w.eval('S').devis.lines.some(l=>/Régulateur/.test(l.des)), 'devis : régulateur + convertisseur');
+    w.choisirArchi('hybride'); w.regenererLignes(false);
+    log(!w.eval('S').devis.lines.some(l=>/Convertisseur|Régulateur/.test(l.des)), 'devis hybride : ni régulateur ni convertisseur');
+    log(w.eval('S').devis.lines.some(l=>/Câble/.test(l.des)) && w.eval('S').devis.lines.some(l=>/Fusible|disjoncteur/i.test(l.des)), 'devis : câbles et protections');
+    log(w.docNoteCalcul().includes('NOTE DE CALCUL'), 'note de calcul générée');
+    w.ouvrirMateriel(m.find(x=>x.type==='hybride').id);
+    log(!!d.getElementById('em_mpptMin'), 'fiche hybride : champ plage MPPT');
+    w.closeSheet();
+    w.toggleDark(); w.vue('systeme'); w.toggleDark();
+    log(erreurs.length === 0, 'aucune erreur JavaScript' + (erreurs.length ? ' : ' + erreurs.join(' | ') : ''));
+  }catch(e){ log(false, 'exception : ' + e.message + '\n' + e.stack); }
+  const ko = out.filter(x => x.startsWith('✖')).length;
+  document.getElementById('out').innerHTML = out.map(x => `<span class="${x.startsWith('✔')?'ok':'ko'}">${x.replace(/</g,'&lt;')}</span>`).join('\n') + `\n\nRÉSULTAT : ${out.length - ko} réussis, ${ko} échoués`;
+  document.title = ko ? 'ECHEC' : 'OK';
+  // ?ouvrir=systeme : affiche ensuite l'application sur cet onglet (captures d'écran)
+  const o = new URLSearchParams(location.search).get('ouvrir'); if(o && new URLSearchParams(location.search).has('prix')){ // prix fictifs pour voir les graphiques de coût
+    const L = JSON.parse(localStorage.getItem('soladima_materiel_v1')).map(m => ({ ...m, prix: m.prix || Math.round(SolaCalculPrix(m)) }));
+    localStorage.setItem('soladima_materiel_v1', JSON.stringify(L));
+    const R = JSON.parse(localStorage.getItem('soladima_reglages_v1')); R.prixGroupeKva = 150000; localStorage.setItem('soladima_reglages_v1', JSON.stringify(R));
+  }
+  if(o) setTimeout(() => location.href = '../index.html#' + o, 300);
+};
+fr.src = '../index.html';
+</script>
+</body></html>

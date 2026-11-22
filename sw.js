@@ -1,8 +1,8 @@
 // Changez ce numéro à chaque mise à jour de l'application (v1 -> v2 -> v3...)
-const VERSION = 'v1';
+const VERSION = 'v2';
 const PREFIX = 'soladima-';
 const CACHE = PREFIX + VERSION;
-const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
+const FILES = ['./', './index.html', './app.js', './calcul.js', './climat.js', './donnees.js', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => {
   // On ne supprime que les anciens caches de CETTE application (d'autres applis peuvent partager le même domaine)

@@ -112,6 +112,38 @@
   #sheet .disc{ margin-top:12px; font-size:11.5px; color:#7a5a47; line-height:1.5; }
   #sheet .foot{ margin-top:22px; padding-top:10px; border-top:1px solid #eadfd5; text-align:center; font-size:12.5px; color:#555; line-height:1.6; }
   #sheet h4{ margin:18px 0 6px; font-size:15px; color:#c2410c; }
+
+  /* --- Version 2 : solutions, graphiques, tableaux --- */
+  .coche{ display:flex; gap:8px; align-items:center; color:var(--text); font-size:14px; margin:10px 0 0; }
+  .coche input{ width:20px; height:20px; flex:none; }
+  .solu{ border:1px solid var(--line); border-radius:14px; padding:11px 12px; margin-bottom:8px; cursor:pointer; }
+  .solu.sel{ border:2px solid var(--primary); }
+  .solu.non{ cursor:default; opacity:.75; }
+  .solu small{ display:block; color:var(--muted); line-height:1.45; margin-top:3px; }
+  .solu-t{ display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .solu-p{ font-weight:800; margin-top:4px; }
+  .badge.ok{ background:#dcfce7; color:#166534; } .badge.sel{ background:var(--primary); color:var(--onp); }
+  body.dark .badge.ok{ background:#14532d; color:#bbf7d0; }
+  .tab{ width:100%; border-collapse:collapse; font-size:13px; margin:6px 0; }
+  .tab th{ text-align:left; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line); padding:5px 4px; }
+  .tab td{ border-bottom:1px solid var(--line); padding:6px 4px; vertical-align:top; }
+  .tab .r{ text-align:right; white-space:nowrap; }
+  .grpd{ margin-top:4px; } .grpd summary.grp{ margin:10px 0 2px; }
+  /* Graphiques : couleurs validées (daltonisme, contraste) en clair et en sombre */
+  .graph{ width:100%; height:auto; display:block; margin-top:4px; --s1:#c2410c; --s2:#2a78d6; }
+  body.dark .graph, body.dark .legende{ --s1:#d95926; --s2:#3987e5; }
+  .legende{ --s1:#c2410c; --s2:#2a78d6; display:flex; flex-wrap:wrap; gap:12px; font-size:12px; margin-top:4px; }
+  .legende i{ display:inline-block; width:14px; height:3px; border-radius:2px; vertical-align:middle; margin-right:5px; }
+  .k-solaire{ background:var(--s1); } .k-groupe{ background:var(--s2); }
+  .graph .grille{ stroke:var(--line); stroke-width:1; }
+  .graph .axe{ fill:var(--muted); font-size:10px; }
+  .graph .etiq{ fill:var(--text); font-size:10.5px; font-weight:600; paint-order:stroke; stroke:var(--card); stroke-width:4px; stroke-linejoin:round; }
+  .graph .barre{ fill:var(--s1); cursor:pointer; }
+  .graph .barre.deficit{ fill:var(--s1); fill-opacity:.45; }
+  .graph .besoin{ stroke:var(--text); stroke-width:1.5; stroke-dasharray:5 4; }
+  .graph .c-solaire{ fill:none; stroke:var(--s1); stroke-width:2; }
+  .graph .c-groupe{ fill:none; stroke:var(--s2); stroke-width:2; }
+  #sheet h4{ margin:14px 0 4px; }
 </style>
 <!-- Bibliothèques intégrées : l'appli fonctionne sans internet -->
 <script>/** @license
@@ -551,8 +583,10 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <input id="cNom" type="text" placeholder="Ex : Mahamat Ali" autocomplete="off" oninput="S.client=this.value;save()" />
       <div class="row">
         <div><label>Téléphone / WhatsApp</label><input id="cTel" type="tel" inputmode="tel" placeholder="66 00 00 00" oninput="S.tel=this.value;save()" /></div>
-        <div><label>Lieu du site</label><input id="cLieu" type="text" placeholder="Ex : Farcha" oninput="S.lieu=this.value;save()" /></div>
+        <div><label>Quartier / adresse</label><input id="cLieu" type="text" placeholder="Ex : Farcha" oninput="S.lieu=this.value;save()" /></div>
       </div>
+      <label>Ville (sert à l'ensoleillement)</label>
+      <select id="cVille" onchange="setVille(this.value)"></select>
     </div>
     <div class="card">
       <h2>Appareils du client</h2>
@@ -567,32 +601,40 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
   <!-- ===== SYSTÈME ===== -->
   <section id="v-systeme" class="view">
+    <div class="card" id="sysComparaison"></div>
     <div class="card" id="sysResultats"></div>
+    <div class="card" id="sysProduction"></div>
+    <div class="card" id="sysCables"></div>
+    <div class="card" id="sysEco"></div>
     <div class="card">
       <h2>Réglages de l'étude</h2>
-      <label style="margin-top:0">Stockage</label>
+      <label style="margin-top:0">Batteries</label>
       <div class="chips" id="chTech"></div>
-      <label>Autonomie des batteries</label>
+      <label>Réserve des batteries</label>
       <div class="chips" id="chAut"></div>
+      <p class="muted small" style="margin:6px 0 0">« Nuit + ½ jour » est conseillé : d'après la simulation PVGIS, avec la nuit seule, les batteries se vident jusqu'à un jour sur trois en août.</p>
       <label>Tension du système</label>
       <div class="chips" id="chV"></div>
+      <label>Secours disponible chez le client</label>
+      <div class="chips" id="chSecours"></div>
+      <div id="boxCoupure"><label>Plus longue coupure à couvrir (heures)</label><input id="pCoupure" type="number" inputmode="decimal" oninput="majParam('coupure',this.value,1)" /></div>
+      <label>Longueur des câbles, aller simple (m)</label>
       <div class="row">
-        <div><label>Panneau</label><select id="selPan" onchange="S.params.panId=this.value;save();renderResultats()"></select></div>
-        <div><label>Batterie</label><select id="selBat" onchange="S.params.batId=this.value;save();renderResultats()"></select></div>
+        <div><label class="small">Panneaux → appareil</label><input id="pLpv" type="number" inputmode="decimal" oninput="majParam('lPv',this.value,1,1)" /></div>
+        <div><label class="small">Batterie → appareil</label><input id="pLbat" type="number" inputmode="decimal" step="0.5" oninput="majParam('lBat',this.value,1,0.5)" /></div>
+        <div><label class="small">Sortie → tableau</label><input id="pLac" type="number" inputmode="decimal" oninput="majParam('lAc',this.value,1,1)" /></div>
       </div>
+      <label>Groupe comparé : heures de marche par jour</label>
+      <input id="pHg" type="number" inputmode="decimal" oninput="majParam('heuresGroupe',this.value,1,1)" />
       <details>
         <summary>Hypothèses de calcul</summary>
         <div class="row">
-          <div><label>Ensoleillement (kWh/m²/jour)</label><input id="pHsp" type="number" inputmode="decimal" step="0.1" oninput="majParam('hsp',this.value,1)" /></div>
-          <div><label>Rendement global panneaux (%)</label><input id="pPr" type="number" inputmode="decimal" oninput="majParam('pr',this.value,100)" /></div>
-        </div>
-        <div class="row">
-          <div><label>Rendement onduleur (%)</label><input id="pEta" type="number" inputmode="decimal" oninput="majParam('etaInv',this.value,100)" /></div>
+          <div><label>Pertes poussière (%)</label><input id="pPous" type="number" inputmode="decimal" oninput="majParam('poussiere',this.value,100)" /></div>
           <div><label>Marge de sécurité (%)</label><input id="pMarge" type="number" inputmode="decimal" oninput="majParam('marge',this.value,100)" /></div>
         </div>
-        <label>Appareils allumés en même temps (%)</label>
-        <input id="pSimul" type="number" inputmode="decimal" oninput="majParam('simul',this.value,100)" />
-        <p>L'ensoleillement par défaut est une valeur prudente pour N'Djaména (la moyenne annuelle est un peu plus élevée, mais la saison des pluies produit moins). Les autres valeurs sont des usages courants : modifiez-les selon votre expérience.</p>
+        <label>Appareils non ponctuels allumés en même temps (%)</label>
+        <input id="pSimul" type="number" inputmode="decimal" oninput="majParam('simul',this.value,100,1)" />
+        <p>L'ensoleillement vient de PVGIS (Commission européenne) pour la ville choisie, mois par mois ; le calcul retient le mois le plus faible (août dans le sud et le centre). La perte due à la chaleur sur les panneaux, la consommation à vide de l'onduleur et le rendement des batteries sont comptés à part. Pendant l'harmattan, nettoyez les panneaux chaque semaine : la poussière peut faire perdre bien plus que 5 %.</p>
       </details>
     </div>
   </section>
@@ -625,7 +667,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <div id="totaux" style="margin-top:8px"></div>
       <label>Conditions affichées sur le devis</label>
       <textarea id="dNote" rows="3" oninput="S.devis.note=this.value;save()"></textarea>
-      <label style="display:flex;gap:8px;align-items:center;color:var(--text);font-size:15px;margin-top:12px"><input id="dBilan" type="checkbox" style="width:20px;height:20px" onchange="S.devis.bilan=this.checked;save()"> Joindre le bilan de consommation (2ᵉ page)</label>
+      <label class="coche"><input id="dBilan" type="checkbox" onchange="S.devis.bilan=this.checked;save()"> Joindre le bilan de consommation</label>
+      <label class="coche"><input id="dCalcul" type="checkbox" onchange="S.devis.noteCalcul=this.checked;save()"> Joindre la note de calcul</label>
     </div>
   </section>
 
@@ -661,20 +704,35 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
     </div>
     <div class="card">
       <h2>Valeurs par défaut des nouvelles études</h2>
+      <label style="margin-top:0">Ville</label>
+      <select id="dfVille" onchange="majDefaut('ville',this.value)"></select>
       <div class="row">
-        <div><label style="margin-top:0">Ensoleillement</label><input id="dfHsp" type="number" step="0.1" inputmode="decimal" oninput="majDefaut('hsp',this.value,1)" /></div>
-        <div><label style="margin-top:0">Rendement panneaux %</label><input id="dfPr" type="number" inputmode="decimal" oninput="majDefaut('pr',this.value,100)" /></div>
+        <div><label>Batteries</label><select id="dfTech" onchange="majDefaut('tech',this.value)"><option value="lithium">Lithium</option><option value="gel">Gel / AGM</option></select></div>
+        <div><label>Réserve</label><select id="dfAut" onchange="majDefaut('aut',this.value,1)"><option value="0">Nuit seulement</option><option value="0.5">Nuit + ½ jour</option><option value="1">Nuit + 1 jour</option><option value="2">Nuit + 2 jours</option></select></div>
       </div>
       <div class="row">
-        <div><label>Rendement onduleur %</label><input id="dfEta" type="number" inputmode="decimal" oninput="majDefaut('etaInv',this.value,100)" /></div>
+        <div><label>Poussière %</label><input id="dfPous" type="number" inputmode="decimal" oninput="majDefaut('poussiere',this.value,100)" /></div>
         <div><label>Marge %</label><input id="dfMarge" type="number" inputmode="decimal" oninput="majDefaut('marge',this.value,100)" /></div>
+        <div><label>Simultanéité %</label><input id="dfSimul" type="number" inputmode="decimal" oninput="majDefaut('simul',this.value,100)" /></div>
       </div>
-      <label>Appareils allumés en même temps %</label>
-      <input id="dfSimul" type="number" inputmode="decimal" oninput="majDefaut('simul',this.value,100)" />
+    </div>
+    <div class="card">
+      <h2>Comparaison avec un groupe électrogène</h2>
+      <div class="row">
+        <div><label style="margin-top:0">Essence (F CFA/L)</label><input id="ePrixEss" type="number" inputmode="decimal" oninput="majDefaut('prixEssence',this.value,1)" /></div>
+        <div><label style="margin-top:0">Gasoil (F CFA/L)</label><input id="ePrixGas" type="number" inputmode="decimal" oninput="majDefaut('prixGasoil',this.value,1)" /></div>
+      </div>
+      <div class="row">
+        <div><label>Prix d'un groupe par kVA</label><input id="ePrixGroupe" type="number" inputmode="decimal" placeholder="à renseigner" oninput="majDefaut('prixGroupeKva',this.value,1)" /></div>
+        <div><label>Entretien par heure de marche</label><input id="eEntretien" type="number" inputmode="decimal" oninput="majDefaut('entretienHeure',this.value,1)" /></div>
+      </div>
+      <label>Prix du kWh d'appoint (réseau ou groupe), pour la solution avec secours</label>
+      <input id="eAppoint" type="number" inputmode="decimal" placeholder="0" oninput="majDefaut('prixKwhAppoint',this.value,1)" />
+      <p class="muted small">Prix à la pompe à N'Djaména : super 700 F/L, gasoil 800 F/L (2026). Ajoutez le transport en province.</p>
     </div>
     <div class="card">
       <h2>Sauvegarde</h2>
-      <p class="muted small" style="margin:0 0 10px">Dossiers, matériel, prix et réglages sont gardés dans ce navigateur. Sauvegardez de temps en temps, et avant de changer de téléphone.</p>
+      <p class="muted small" style="margin:0 0 10px">Dossiers, matériel, prix et réglages sont gardés uniquement dans ce téléphone. Sauvegardez de temps en temps, et avant de changer de téléphone.</p>
       <div class="row">
         <button class="btn sec" onclick="exporterSauvegarde()">⬇ Sauvegarder</button>
         <button class="btn sec" onclick="document.getElementById('imp').click()">⬆ Restaurer</button>
@@ -685,9 +743,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
       <h2>À savoir</h2>
       <details open>
         <summary>Ce que fait cet outil, et ses limites</summary>
-        <p>SolaDima donne un <b>dimensionnement préliminaire</b> d'un système solaire autonome avec batteries (panneaux, batteries, onduleur, régulateur MPPT). C'est une aide pour chiffrer vite, pas un dossier d'ingénierie.</p>
-        <p>Il ne calcule pas encore : la configuration série/parallèle des panneaux (à vérifier avec la tension maximale du régulateur), la section des câbles, les protections, l'ombrage, l'inclinaison, le pompage solaire ni les systèmes connectés au réseau.</p>
-        <p>Confirmez toujours par une visite technique avant de valider un devis.</p>
+        <p>SolaDima compare quatre solutions : kit 12 V sans onduleur, régulateur (PWM ou MPPT) avec convertisseur séparé, onduleur hybride tout-en-un, et hybride avec secours du réseau ou d'un groupe. Il choisit le matériel dans votre catalogue, vérifie les tensions des panneaux par temps froid et chaud, les courants des batteries, et calcule les câbles et les protections.</p>
+        <p>L'ensoleillement vient de PVGIS (Commission européenne) pour 24 villes du Tchad. Le calcul a été vérifié par simulation heure par heure avec PVGIS.</p>
+        <p>Il ne remplace pas une visite technique : ombrage, état du toit, mise à la terre existante et qualité réelle du matériel se vérifient sur place. Il ne traite pas le pompage solaire au fil du soleil ni l'injection sur le réseau.</p>
       </details>
     </div>
   </section>
@@ -708,656 +766,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 <div id="toast"></div>
 <div id="sheet"></div>
 
-<script>
-/* ============================================================
-   Données et utilitaires
-   ============================================================ */
-const K = { etat:'soladima_etat_v1', dos:'soladima_dossiers_v1', mat:'soladima_materiel_v1', reg:'soladima_reglages_v1', cpt:'soladima_compteur_v1', dark:'soladima_dark' };
-const $ = id => document.getElementById(id);
-const lire = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch(e){ return d; } };
-const ecrire = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(e){ toast('Stockage plein ou bloqué'); return false; } };
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt = n => (Number(n)||0).toLocaleString('fr-FR').replace(/[  ]/g,' ');
-const f1 = n => (Math.round((Number(n)||0)*10)/10).toLocaleString('fr-FR').replace(/[  ]/g,' ');
-const f2 = n => (Math.round((Number(n)||0)*100)/100).toLocaleString('fr-FR').replace(/[  ]/g,' ');
-const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-const p2 = n => String(n).padStart(2,'0');
-function aujourdhui(){ const d=new Date(); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
-const dCourt = d => d ? d.split('-').reverse().join('/') : '';
-function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2500); }
-
-let reglages = { nom:'', adresse:'', pied:'', note:'Devis valable 15 jours. Prix donnés à titre préliminaire, à confirmer après visite technique.', indicatif:'235', logo:'',
-                 hsp:5, pr:0.75, etaInv:0.9, marge:0.1, simul:0.8 };
-let materiel = [];
-let dossiers = [];
-let S = null;            // dossier en cours
-let vueCourante = 'besoins';
-let nonEnregistre = false;
-
-/* ---------- Fenêtre (avec bouton Retour d'Android) ---------- */
-let sheetOpen = false;
-function openSheet(html){ $('sh').innerHTML = html; $('sh').scrollTop = 0; $('ov').classList.add('open'); if(!sheetOpen){ sheetOpen = true; try{ history.pushState({sh:1},''); }catch(e){} } }
-function closeSheet(fromPop){ $('ov').classList.remove('open'); if(sheetOpen){ sheetOpen = false; if(!fromPop){ try{ history.back(); }catch(e){} } } }
-window.addEventListener('popstate', ()=>{ if(sheetOpen) closeSheet(true); });
-
-function toggleDark(){ document.body.classList.toggle('dark'); try{ localStorage.setItem(K.dark, document.body.classList.contains('dark')?'1':'0'); }catch(e){} }
-
-/* ============================================================
-   Appareils courants (consommations indicatives, à ajuster)
-   [nom, puissance W, heures/jour équivalentes, période, démarrage ×]
-   ============================================================ */
-const PRESETS = [
-  ['Ampoule LED 9 W', 9, 5, 'nuit', 1], ['Projecteur LED extérieur 20 W', 20, 10, 'nuit', 1],
-  ['Ventilateur sur pied 60 W', 60, 8, 'mixte', 1], ['Ventilateur de plafond 75 W', 75, 8, 'mixte', 1],
-  ['Télévision LED 32 pouces 50 W', 50, 5, 'nuit', 1], ['Télévision LED 43 pouces 80 W', 80, 5, 'nuit', 1],
-  ['Décodeur TV 15 W', 15, 5, 'nuit', 1], ['Radio / chaîne hi-fi 30 W', 30, 4, 'mixte', 1],
-  ['Chargeur de téléphone 10 W', 10, 3, 'mixte', 1], ['Ordinateur portable 65 W', 65, 5, 'jour', 1],
-  ['Box Internet / routeur Wi-Fi 12 W', 12, 24, 'mixte', 1], ['Caméra de surveillance 10 W', 10, 24, 'mixte', 1],
-  ['Réfrigérateur 150 W', 150, 8, 'mixte', 3], ['Congélateur coffre 200 W', 200, 10, 'mixte', 3],
-  ['Climatiseur split 1 CV (900 W)', 900, 8, 'mixte', 3], ['Climatiseur split 1,5 CV (1 200 W)', 1200, 8, 'mixte', 3],
-  ['Pompe à eau / surpresseur 750 W', 750, 1, 'jour', 3], ['Machine à laver 500 W', 500, 1, 'jour', 3],
-  ['Fer à repasser 1 000 W', 1000, 0.5, 'jour', 1], ['Mixeur 300 W', 300, 0.3, 'jour', 1],
-  ['Bouilloire électrique 1 500 W', 1500, 0.3, 'jour', 1], ['Four micro-ondes 1 000 W', 1000, 0.3, 'jour', 1],
-  ['Portail motorisé 300 W', 300, 0.2, 'jour', 3]
-];
-
-/* ============================================================
-   Matériel (catalogue) : les PRIX sont à renseigner par l'utilisateur
-   ============================================================ */
-const TYPES = { panneau:'Panneaux solaires', batterie:'Batteries', onduleur:'Onduleurs', regulateur:'Régulateurs MPPT', autre:'Autres (supports, câbles, installation…)' };
-const vFr = v => String(v).replace('.',',');
-function nomAuto(m){
-  if(m.type==='panneau') return `Panneau solaire ${m.w} Wc`;
-  if(m.type==='batterie') return `Batterie ${m.tech==='lithium'?'lithium LiFePO4':'gel / AGM'} ${vFr(m.v)} V ${m.ah} Ah`;
-  if(m.type==='onduleur') return `Onduleur pur sinus ${m.w} W ${m.v} V`;
-  if(m.type==='regulateur') return `Régulateur solaire MPPT ${m.a} A`;
-  return 'Article';
-}
-function materielParDefaut(){
-  const L = [];
-  [250,400,550].forEach(w=>L.push({type:'panneau',w}));
-  [[12.8,100],[12.8,200],[25.6,100],[51.2,100],[51.2,200]].forEach(([v,ah])=>L.push({type:'batterie',tech:'lithium',v,ah}));
-  [[12,100],[12,200]].forEach(([v,ah])=>L.push({type:'batterie',tech:'gel',v,ah}));
-  [[500,12],[1000,12],[1500,24],[2000,24],[3000,24],[3000,48],[5000,48],[8000,48]].forEach(([w,v])=>L.push({type:'onduleur',w,v}));
-  [30,40,60,80,100].forEach(a=>L.push({type:'regulateur',a}));
-  L.push({type:'autre',nom:'Support de fixation (par panneau)',auto:'panneaux'},{type:'autre',nom:'Câbles, connecteurs et protections',auto:'un'},{type:'autre',nom:'Installation et mise en service',auto:'un'},{type:'autre',nom:'Transport',auto:'non'});
-  return L.map(m=>({id:uid('m'), prix:0, nom:m.nom||'', ...m, nom:m.nom||nomAuto(m)}));
-}
-const mat = t => materiel.filter(m=>m.type===t);
-const cls = v => v<18 ? 12 : (v<36 ? 24 : 48);
-
-/* ============================================================
-   Dossier (étude) en cours
-   ============================================================ */
-function prochainNumero(){ const n = lire(K.cpt, 0) + 1; ecrire(K.cpt, n); return 'SD-' + String(n).padStart(3,'0'); }
-function nouvelleEtude(){
-  return { id:null, num:prochainNumero(), date:aujourdhui(), client:'', tel:'', lieu:'', appareils:[],
-    params:{ hsp:reglages.hsp, pr:reglages.pr, etaInv:reglages.etaInv, marge:reglages.marge, simul:reglages.simul, tech:'lithium', aut:1, vsys:'auto', panId:'auto', batId:'auto' },
-    devis:{ objet:'Installation d’un système solaire autonome', remise:0, note:reglages.note, bilan:true, lines:[], sig:'' } };
-}
-function save(){ nonEnregistre = true; ecrire(K.etat, S); }
-function chargerEtude(d){
-  S = JSON.parse(JSON.stringify(d));
-  S.params = { hsp:5, pr:.75, etaInv:.9, marge:.1, simul:.8, tech:'lithium', aut:1, vsys:'auto', panId:'auto', batId:'auto', ...(S.params||{}) };
-  S.devis = { objet:'', remise:0, note:'', bilan:true, lines:[], sig:'', ...(S.devis||{}) };
-  S.appareils = S.appareils || [];
-  $('cNom').value = S.client||''; $('cTel').value = S.tel||''; $('cLieu').value = S.lieu||'';
-  ecrire(K.etat, S); nonEnregistre = false;
-  renderAppareils(); refreshAll();
-}
-function refreshAll(){ renderBesoinsRes(); if(vueCourante==='systeme') initSysteme(); if(vueCourante==='devis') initDevis(); majBarre(); }
-
-/* ============================================================
-   Navigation
-   ============================================================ */
-const TITRES = { besoins:'Besoins énergétiques', systeme:'Dimensionnement', devis:'Devis', materiel:'Mon matériel', plus:'Dossiers et réglages' };
-function vue(n){
-  vueCourante = n;
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  $('v-'+n).classList.add('active');
-  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active', b.dataset.v===n));
-  $('titre').textContent = TITRES[n];
-  if(n==='besoins') renderBesoinsRes();
-  if(n==='systeme') initSysteme();
-  if(n==='devis') initDevis();
-  if(n==='materiel') renderMateriel();
-  if(n==='plus') initPlus();
-  majBarre(); window.scrollTo(0,0);
-}
-function majBarre(){
-  const b = $('actionbar'); b.style.display = 'flex';
-  if(vueCourante==='besoins'){
-    const r = calculer();
-    b.innerHTML = `<div class="info"><small>Consommation par jour</small><b>${r.vide?'—':f2(r.Etot/1000)+' kWh'}</b></div><button class="btn go" onclick="vue('systeme')">Dimensionner ›</button>`;
-  } else if(vueCourante==='systeme'){
-    const r = calculer();
-    b.innerHTML = `<div class="info"><small>Solaire proposé</small><b>${r.vide?'—':f2(r.pan.Wc/1000)+' kWc'}</b></div><button class="btn go" onclick="vue('devis')">Faire le devis ›</button>`;
-  } else if(vueCourante==='devis'){
-    b.innerHTML = `<button class="btn wa" onclick="envoyerWhatsApp()">📤 WhatsApp</button><button class="btn" onclick="genererPDF()">📄 PDF</button>`;
-  } else b.style.display = 'none';
-}
-
-/* ============================================================
-   BESOINS : appareils
-   ============================================================ */
-const periodes = [['jour','☀ Jour'],['nuit','🌙 Nuit'],['mixte','⏱ Mixte']];
-function majDatalistAp(){ $('dlAp').innerHTML = PRESETS.map(p=>`<option value="${esc(p[0])}">`).join(''); }
-function renderAppareils(){
-  const box = $('listeAp');
-  if(!S.appareils.length){ box.innerHTML = '<div class="empty">Aucun appareil.<br>Appuyez sur « Appareils courants » pour choisir vite, ou ajoutez-en un à la main.</div>'; return; }
-  box.innerHTML = S.appareils.map((a,i)=>`
-    <div class="ap" data-i="${i}">
-      <label style="margin-top:0">Appareil</label>
-      <input type="text" class="des" list="dlAp" value="${esc(a.nom)}" placeholder="Ex : Réfrigérateur" />
-      <div class="row">
-        <div><label>Quantité</label><input type="number" class="qte" inputmode="decimal" value="${esc(a.qte)}" /></div>
-        <div><label>Puissance (W)</label><input type="number" class="w" inputmode="decimal" value="${esc(a.w)}" /></div>
-        <div><label>Heures/jour</label><input type="number" class="h" inputmode="decimal" step="0.1" value="${esc(a.h)}" /></div>
-      </div>
-      <label>Quand l'utilise-t-on ?</label>
-      <div class="chips">${periodes.map(([v,t])=>`<button class="chip ${a.per===v?'on':''}" onclick="setPer(${i},'${v}')">${t}</button>`).join('')}</div>
-      <label>Type d'appareil</label>
-      <div class="chips"><button class="chip ${(a.surge||1)<=1?'on':''}" onclick="setSurge(${i},1)">Normal</button><button class="chip ${(a.surge||1)>1?'on':''}" onclick="setSurge(${i},3)">Moteur / compresseur (démarrage ×3)</button></div>
-      <div class="foot"><button class="iconbtn" onclick="supprimerAppareil(${i})">🗑</button><div class="tot"><span class="wh">${fmt(a.qte*a.w*a.h)}</span> Wh/jour</div></div>
-    </div>`).join('');
-}
-$('listeAp').addEventListener('input', e=>{
-  const el = e.target.closest('.ap'); if(!el) return;
-  const a = S.appareils[+el.dataset.i], c = e.target.classList;
-  if(c.contains('des')) a.nom = e.target.value;
-  if(c.contains('qte')) a.qte = parseFloat(e.target.value)||0;
-  if(c.contains('w')) a.w = parseFloat(e.target.value)||0;
-  if(c.contains('h')) a.h = parseFloat(e.target.value)||0;
-  el.querySelector('.wh').textContent = fmt(a.qte*a.w*a.h);
-  renderBesoinsRes(); majBarre(); save();
-});
-$('listeAp').addEventListener('change', e=>{
-  if(!e.target.classList.contains('des')) return;
-  const el = e.target.closest('.ap'), a = S.appareils[+el.dataset.i];
-  const p = PRESETS.find(x=>x[0].toLowerCase()===a.nom.trim().toLowerCase());
-  if(p && !a.w){ a.w = p[1]; a.h = p[2]; a.per = p[3]; a.surge = p[4]; renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
-});
-function ajouterAppareil(p){
-  S.appareils.push(p ? {nom:p[0], qte:1, w:p[1], h:p[2], per:p[3], surge:p[4]} : {nom:'', qte:1, w:0, h:0, per:'mixte', surge:1});
-  renderAppareils(); renderBesoinsRes(); majBarre(); save();
-  if(!p){ const l = document.querySelectorAll('#listeAp .des'); l[l.length-1]?.focus(); }
-}
-function supprimerAppareil(i){ S.appareils.splice(i,1); renderAppareils(); renderBesoinsRes(); majBarre(); save(); }
-function setPer(i,v){ S.appareils[i].per = v; renderAppareils(); renderBesoinsRes(); save(); }
-function setSurge(i,v){ S.appareils[i].surge = v; renderAppareils(); renderBesoinsRes(); save(); }
-
-function ouvrirPresets(){
-  openSheet(`<div class="shh"><b>Appareils courants</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
-    <p class="muted small" style="margin:0 0 6px">Touchez un appareil pour l'ajouter (autant de fois que nécessaire). Les puissances et durées sont indicatives : ajustez-les ensuite pour chaque client.</p>
-    <input id="rechPre" type="text" placeholder="🔍 Rechercher…" oninput="renderPresets()" /><div id="listePre"></div>`);
-  renderPresets();
-}
-function renderPresets(){
-  const q = ($('rechPre')?.value||'').toLowerCase();
-  const items = PRESETS.map((p,i)=>({p,i})).filter(x=>x.p[0].toLowerCase().includes(q));
-  $('listePre').innerHTML = items.length ? items.map(({p,i})=>{
-    const n = S.appareils.filter(a=>a.nom===p[0]).reduce((s,a)=>s+a.qte,0);
-    return `<div class="art" onclick="ajouterPreset(${i})"><div class="info"><b>${esc(p[0])}</b><small>${fmt(p[1])} W · ${fmt(p[2])} h/jour</small></div>${n?`<span class="tt" style="color:var(--primary)">× ${n}</span>`:''}<span class="iconbtn">＋</span></div>`;
-  }).join('') : '<div class="empty">Aucun résultat.</div>';
-}
-function ajouterPreset(i){
-  const p = PRESETS[i], ex = S.appareils.find(a=>a.nom===p[0] && a.w===p[1] && a.h===p[2] && a.per===p[3]);
-  if(ex) ex.qte += 1; else S.appareils.push({nom:p[0], qte:1, w:p[1], h:p[2], per:p[3], surge:p[4]});
-  renderAppareils(); renderBesoinsRes(); majBarre(); renderPresets(); save();
-}
-
-function renderBesoinsRes(){
-  const r = calculer(), box = $('resBesoins');
-  if(r.vide){ box.innerHTML = '<h2>Bilan de consommation</h2><div class="empty">Ajoutez des appareils pour voir le bilan.</div>'; return; }
-  box.innerHTML = `<h2>Bilan de consommation</h2>
-    <div class="bignum"><div><small>Énergie par jour</small><b>${f2(r.Etot/1000)} kWh</b></div><div><small>Puissance installée</small><b>${fmt(r.Pinst)} W</b></div>
-    <div><small>Dont de jour ☀</small><b>${f2(r.Ejour/1000)} kWh</b></div><div><small>Dont de nuit 🌙</small><b>${f2(r.Enuit/1000)} kWh</b></div></div>
-    <p class="muted small" style="margin:8px 0 0">Les appareils « Mixte » comptent pour moitié de jour, moitié de nuit.</p>`;
-}
-
-/* ============================================================
-   CALCUL DU DIMENSIONNEMENT
-   ============================================================ */
-const STD_INV = [300,500,800,1000,1500,2000,3000,4000,5000,6000,8000,10000];
-const STD_REG = [20,30,40,50,60,80,100];
-const partNuit = p => p==='nuit' ? 1 : (p==='jour' ? 0 : 0.5);
-
-function calculer(){
-  const P = S.params, ap = S.appareils.filter(a=>a.qte>0 && a.w>0);
-  let Etot=0, Enuit=0, Pinst=0, extra=0;
-  ap.forEach(a=>{
-    const wh = a.qte*a.w*a.h; Etot += wh; Enuit += wh*partNuit(a.per); Pinst += a.qte*a.w;
-    extra = Math.max(extra, (Math.max(1,a.surge||1)-1)*a.w);        // un seul gros moteur démarre à la fois
-  });
-  if(Etot<=0) return { vide:true, Pinst };
-  const warns = [], infos = [];
-  const Ejour = Etot-Enuit, lith = P.tech==='lithium';
-  const etaB = lith ? 0.95 : 0.85, dod = lith ? 0.8 : 0.5;
-  const Edc = Etot/P.etaInv, EnuitDc = Enuit/P.etaInv, EjourDc = Ejour/P.etaInv;
-
-  // Panneaux : énergie à produire = jour direct + nuit (qui passe par la batterie), avec marge
-  const Epv = (EjourDc + EnuitDc/etaB) * (1+P.marge);
-  const WcReq = Epv / (P.hsp*P.pr);
-
-  // Puissance d'onduleur
-  const Ppointe = Pinst*P.simul;
-  const needW = Math.max(Ppointe*1.2, (Ppointe+extra)/2);
-
-  // Tension du système
-  const vAuto = Math.max(needW<=1000?12:(needW<=3000?24:48), WcReq<=800?12:(WcReq<=2400?24:48));
-  const V = P.vsys==='auto' ? vAuto : +P.vsys;
-
-  // Panneau
-  let pans = mat('panneau').filter(m=>m.w>0), sel = P.panId!=='auto' ? pans.find(m=>m.id===P.panId) : null;
-  if(sel) pans = [sel];
-  let bp = null;
-  pans.forEach(m=>{ const n = Math.max(1,Math.ceil(WcReq/m.w)), tot = n*m.w; if(!bp || tot<bp.tot || (tot===bp.tot && n<bp.n)) bp = {m,n,tot}; });
-  if(!bp){ const m = {id:null,type:'panneau',nom:'Panneau solaire 400 Wc',w:400,prix:0,generic:true}; bp = {m, n:Math.max(1,Math.ceil(WcReq/400)), tot:0}; bp.tot = bp.n*400; warns.push('Aucun panneau dans votre matériel : un modèle de 400 Wc est supposé (ajoutez vos panneaux dans l’onglet Matériel).'); }
-  const Wc = bp.tot;
-
-  // Batteries
-  const usable = Math.max(EnuitDc, P.aut*Edc, 0.25*Edc);
-  const nomWh = usable/dod, AhReq = nomWh/V;
-  let bats = mat('batterie').filter(m=>m.tech===P.tech && m.ah>0 && m.v>0 && cls(m.v)<=V && V%cls(m.v)===0);
-  if(P.batId!=='auto'){ const s = materiel.find(m=>m.id===P.batId); const ok = s && bats.some(m=>m.id===s.id); if(ok) bats = [s]; else if(s) warns.push(`La batterie choisie (${s.nom}) ne convient pas à un système ${V} V ou au stockage choisi : sélection automatique utilisée.`); }
-  let bb = null;
-  bats.forEach(m=>{ const series = V/cls(m.v), par = Math.max(1,Math.ceil(AhReq/m.ah)), units = series*par, Wh = units*m.v*m.ah;
-    if(!bb || Wh<bb.Wh || (Wh===bb.Wh && units<bb.units)) bb = {m,series,par,units,Wh}; });
-  if(!bb){
-    const m = {id:null,type:'batterie',tech:P.tech,v:12,ah:100,prix:0,generic:true}; m.nom = nomAuto(m).replace('12 V','12 V');
-    const series = V/12, par = Math.max(1,Math.ceil(AhReq/100)); bb = {m,series,par,units:series*par,Wh:series*par*12*100};
-    warns.push(`Aucune batterie ${lith?'lithium':'gel'} adaptée à ${V} V dans votre matériel : un modèle 12 V 100 Ah est supposé.`);
-  }
-  if(bb.units>8) warns.push(`${bb.units} batteries : nombre élevé. Une tension de système plus haute réduirait le câblage.`);
-
-  // Onduleur
-  let invs = mat('onduleur').filter(m=>cls(m.v)===V && m.w>=needW).sort((a,b)=>a.w-b.w), inv = invs[0];
-  if(!inv){
-    const w = STD_INV.find(x=>x>=needW) || Math.ceil(needW/1000)*1000;
-    inv = {id:null,type:'onduleur',w,v:V,prix:0,generic:true}; inv.nom = nomAuto(inv);
-    warns.push(`Aucun onduleur ${V} V d'au moins ${fmt(Math.ceil(needW))} W dans votre matériel : ajoutez-en un (onglet Matériel).`);
-  }
-  if(needW>10000) warns.push('Puissance très élevée : une étude détaillée est recommandée.');
-  if(V===12 && inv.w>1000) warns.push('Onduleur de plus de 1 000 W en 12 V : courants très forts. Une tension de 24 V est préférable.');
-
-  // Régulateur MPPT
-  const Ireg = Wc/V*1.25;
-  let regs = mat('regulateur').filter(m=>m.a>0), br = null;
-  regs.forEach(m=>{ const n = Math.max(1,Math.ceil(Ireg/m.a)), tot = n*m.a; if(!br || tot<br.tot || (tot===br.tot && n<br.n)) br = {m,n,tot}; });
-  if(!br){
-    const a = STD_REG.find(x=>x>=Ireg) || 100, n = STD_REG.find(x=>x>=Ireg) ? 1 : Math.ceil(Ireg/100);
-    const m = {id:null,type:'regulateur',a,prix:0,generic:true}; m.nom = nomAuto(m); br = {m,n,tot:n*a};
-    warns.push('Aucun régulateur dans votre matériel : un modèle standard est supposé.');
-  }
-  if(br.n>1) infos.push(`${br.n} régulateurs sont nécessaires pour ${Math.ceil(Ireg)} A (ou un modèle plus gros).`);
-
-  if(P.hsp<3 || P.hsp>7) warns.push('Ensoleillement inhabituel : vérifiez la valeur dans les hypothèses.');
-  if(extra>0) infos.push('Le courant de démarrage des moteurs (frigo, climatiseur, pompe…) est pris en compte pour l’onduleur.');
-  infos.push('À vérifier sur place : configuration série/parallèle des panneaux (tension maximale du régulateur), section des câbles, protections, ombrage et inclinaison.');
-
-  const Eprod = Wc*P.hsp*P.pr;
-  const r = { vide:false, Etot, Ejour, Enuit, Pinst, Ppointe, extra, needW, V, vAuto, WcReq, Epv, Eprod, usable, nomWh, AhReq, dod, etaB, lith,
-    pan:{m:bp.m, n:bp.n, Wc}, bat:bb, inv, reg:{m:br.m, n:br.n, Ireg}, warns, infos };
-  r.lignes = lignesAuto(r);
-  return r;
-}
-
-function lignesAuto(r){
-  const L = [
-    { des:r.pan.m.nom, qte:r.pan.n, pu:r.pan.m.prix||0, cle:'pv' },
-    { des:r.bat.m.nom, qte:r.bat.units, pu:r.bat.m.prix||0, cle:'bat' },
-    { des:r.inv.nom, qte:1, pu:r.inv.prix||0, cle:'inv' },
-    { des:r.reg.m.nom, qte:r.reg.n, pu:r.reg.m.prix||0, cle:'reg' }
-  ];
-  mat('autre').forEach(m=>{
-    const q = m.auto==='un' ? 1 : m.auto==='panneaux' ? r.pan.n : m.auto==='batteries' ? r.bat.units : 0;
-    if(q>0) L.push({ des:m.nom, qte:q, pu:m.prix||0, cle:'x'+m.id });
-  });
-  return L;
-}
-const sigDe = r => JSON.stringify(r.lignes.map(l=>[l.des,l.qte,l.pu]));
-
-/* ============================================================
-   SYSTÈME
-   ============================================================ */
-function initSysteme(){
-  const P = S.params;
-  $('chTech').innerHTML = [['lithium','Lithium (LiFePO4)'],['gel','Gel / AGM']].map(([v,t])=>`<button class="chip ${P.tech===v?'on':''}" onclick="setParam('tech','${v}')">${t}</button>`).join('');
-  $('chAut').innerHTML = [[0,'Nuit seulement'],[1,'1 jour'],[2,'2 jours'],[3,'3 jours']].map(([v,t])=>`<button class="chip ${P.aut===v?'on':''}" onclick="setParam('aut',${v})">${t}</button>`).join('');
-  $('chV').innerHTML = [['auto','Automatique'],[12,'12 V'],[24,'24 V'],[48,'48 V']].map(([v,t])=>`<button class="chip ${String(P.vsys)===String(v)?'on':''}" onclick="setParam('vsys',${typeof v==='number'?v:`'${v}'`})">${t}</button>`).join('');
-  const pans = mat('panneau'), bats = mat('batterie').filter(m=>m.tech===P.tech);
-  $('selPan').innerHTML = '<option value="auto">Automatique</option>' + pans.map(m=>`<option value="${m.id}" ${P.panId===m.id?'selected':''}>${esc(m.nom)}</option>`).join('');
-  $('selBat').innerHTML = '<option value="auto">Automatique</option>' + bats.map(m=>`<option value="${m.id}" ${P.batId===m.id?'selected':''}>${esc(m.nom)}</option>`).join('');
-  $('pHsp').value = P.hsp; $('pPr').value = Math.round(P.pr*100); $('pEta').value = Math.round(P.etaInv*100); $('pMarge').value = Math.round(P.marge*100); $('pSimul').value = Math.round(P.simul*100);
-  renderResultats();
-}
-function setParam(k,v){ S.params[k] = v; if(k==='tech') S.params.batId = 'auto'; save(); initSysteme(); majBarre(); }
-function majParam(k,val,div){ const n = parseFloat(val); if(isNaN(n)||n<=0) return; S.params[k] = n/div; save(); renderResultats(); majBarre(); }
-
-function renderResultats(){
-  const r = calculer(), box = $('sysResultats');
-  if(r.vide){ box.innerHTML = '<h2>Système proposé</h2><div class="empty">Ajoutez d\'abord les appareils du client dans l\'onglet Besoins.</div>'; return; }
-  const manque = r.lignes.filter(l=>!l.pu).length;
-  box.innerHTML = `<h2>Système proposé</h2>
-    <div class="res"><div class="ic">🔆</div><div class="tx"><b>${r.pan.n} × ${esc(r.pan.m.nom)}</b><small>Total ${fmt(r.pan.Wc)} Wc (${f2(r.pan.Wc/1000)} kWc) · besoin calculé ${fmt(Math.ceil(r.WcReq))} Wc</small></div></div>
-    <div class="res"><div class="ic">🔋</div><div class="tx"><b>${r.bat.units} × ${esc(r.bat.m.nom)}</b><small>${r.bat.series>1?`${r.bat.series} en série × ${r.bat.par} en parallèle · `:(r.bat.par>1?`${r.bat.par} en parallèle · `:'')}${f2(r.bat.Wh/1000)} kWh installés (${f2(r.usable/1000)} kWh utiles demandés)</small></div></div>
-    <div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(r.inv.nom)}</b><small>Puissance minimale calculée : ${fmt(Math.ceil(r.needW))} W · système en ${r.V} V</small></div></div>
-    <div class="res"><div class="ic">🎛️</div><div class="tx"><b>${r.reg.n} × ${esc(r.reg.m.nom)}</b><small>Courant de charge à supporter : ${fmt(Math.ceil(r.reg.Ireg))} A</small></div></div>
-    <div class="bignum" style="margin-top:10px"><div><small>Consommation / jour</small><b>${f2(r.Etot/1000)} kWh</b></div><div><small>Production estimée / jour</small><b>${f2(r.Eprod/1000)} kWh</b></div></div>
-    ${manque?`<div class="alert">⚠ ${manque} ligne(s) sans prix : renseignez vos prix dans l'onglet Matériel.</div>`:''}
-    ${r.warns.map(w=>`<div class="alert">⚠ ${esc(w)}</div>`).join('')}
-    ${r.infos.map(w=>`<div class="alert info">ℹ ${esc(w)}</div>`).join('')}`;
-}
-
-/* ============================================================
-   DEVIS
-   ============================================================ */
-function initDevis(){
-  $('dNum').value = S.num||''; $('dDate').value = S.date||''; $('dObjet').value = S.devis.objet||'';
-  $('dRemise').value = S.devis.remise||''; $('dNote').value = S.devis.note||''; $('dBilan').checked = !!S.devis.bilan;
-  const r = calculer();
-  if(!S.devis.lines.length && !r.vide) regenererLignes(false);
-  renderLignesDevis(); majBanner();
-}
-function majBanner(){
-  const r = calculer(), box = $('bannerSig');
-  box.innerHTML = (!r.vide && S.devis.lines.some(l=>l.auto) && S.devis.sig && S.devis.sig!==sigDe(r))
-    ? `<div class="alert" style="margin:0 0 14px">Le dimensionnement ou vos prix ont changé depuis la création de ces lignes. <button class="btn small" style="margin-top:8px" onclick="regenererLignes(true)">↻ Mettre à jour les lignes</button></div>` : '';
-}
-function regenererLignes(confirmer){
-  const r = calculer();
-  if(r.vide) return toast('Ajoutez d\'abord des appareils');
-  if(confirmer && S.devis.lines.some(l=>l.auto && l.edite) && !confirm('Les lignes automatiques que vous avez modifiées seront remplacées. Continuer ?')) return;
-  const manuelles = S.devis.lines.filter(l=>!l.auto);
-  S.devis.lines = [...r.lignes.map(l=>({id:uid('l'), des:l.des, qte:l.qte, pu:l.pu, auto:true, edite:false})), ...manuelles];
-  S.devis.sig = sigDe(r); save();
-  if(vueCourante==='devis'){ renderLignesDevis(); majBanner(); }
-  if(confirmer) toast('Lignes mises à jour ✅');
-}
-function renderLignesDevis(){
-  const box = $('lignesDevis');
-  if(!S.devis.lines.length){ box.innerHTML = '<div class="empty">Aucune ligne.<br>Ajoutez des appareils puis revenez ici, ou ajoutez des lignes à la main.</div>'; majTotaux(); return; }
-  box.innerHTML = S.devis.lines.map((l,i)=>`
-    <div class="ap ${l.pu?'':'warn'}" data-i="${i}">
-      <label style="margin-top:0">Désignation</label>
-      <input type="text" class="des" value="${esc(l.des)}" />
-      <div class="row">
-        <div><label>Quantité</label><input type="number" class="qte" inputmode="decimal" value="${esc(l.qte)}" /></div>
-        <div><label>Prix unitaire</label><input type="number" class="pu" inputmode="decimal" value="${l.pu?esc(l.pu):''}" placeholder="0" /></div>
-      </div>
-      <div class="foot"><button class="iconbtn" onclick="supprimerLigne(${i})">🗑</button><div class="tot"><span class="pt">${fmt(l.qte*l.pu)}</span></div></div>
-      ${l.pu?'':'<div class="small" style="color:var(--warn);margin-top:6px">⚠ Prix à renseigner</div>'}
-    </div>`).join('');
-  majTotaux();
-}
-$('lignesDevis').addEventListener('input', e=>{
-  const el = e.target.closest('.ap'); if(!el) return;
-  const l = S.devis.lines[+el.dataset.i], c = e.target.classList;
-  if(c.contains('des')) l.des = e.target.value;
-  if(c.contains('qte')) l.qte = parseFloat(e.target.value)||0;
-  if(c.contains('pu')){ l.pu = parseFloat(e.target.value)||0; el.classList.toggle('warn', !l.pu); }
-  l.edite = true;
-  el.querySelector('.pt').textContent = fmt(l.qte*l.pu); majTotaux(); save();
-});
-function ajouterLigne(){ S.devis.lines.push({id:uid('l'), des:'', qte:1, pu:0, auto:false}); renderLignesDevis(); save(); const l = document.querySelectorAll('#lignesDevis .des'); l[l.length-1]?.focus(); }
-function supprimerLigne(i){ S.devis.lines.splice(i,1); renderLignesDevis(); save(); majBanner(); }
-function totalLignes(){ return S.devis.lines.reduce((s,l)=>s+l.qte*l.pu,0); }
-function totalNet(){ const t = totalLignes(); return Math.max(0, t - Math.min(S.devis.remise||0, t)); }
-function majTotaux(){
-  const t = totalLignes(), rem = Math.min(S.devis.remise||0, t);
-  $('totaux').innerHTML = (rem ? `<div class="tot muted"><span>Sous-total</span><span>${fmt(t)} F CFA</span></div><div class="tot muted"><span>Remise</span><span>− ${fmt(rem)} F CFA</span></div>` : '')
-    + `<div class="tot big"><span>Total</span><span>${fmt(t-rem)} F CFA</span></div>`;
-}
-function ouvrirPickerMateriel(){
-  openSheet(`<div class="shh"><b>Ajouter depuis mon matériel</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
-    <input id="rechPk" type="text" placeholder="🔍 Rechercher…" oninput="renderPicker()" /><div id="listePk"></div>`);
-  renderPicker();
-}
-function renderPicker(){
-  const q = ($('rechPk')?.value||'').toLowerCase();
-  const L = materiel.filter(m=>m.nom.toLowerCase().includes(q));
-  $('listePk').innerHTML = L.length ? L.map(m=>`<div class="art" onclick="ajouterDepuisMateriel('${m.id}')"><div class="info"><b>${esc(m.nom)}</b><small>${esc(TYPES[m.type])}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div><span class="iconbtn">＋</span></div>`).join('') : '<div class="empty">Aucun article.</div>';
-}
-function ajouterDepuisMateriel(id){
-  const m = materiel.find(x=>x.id===id); if(!m) return;
-  S.devis.lines.push({id:uid('l'), des:m.nom, qte:1, pu:m.prix||0, auto:false}); save(); renderLignesDevis(); closeSheet(); toast('Ligne ajoutée ✅');
-}
-
-/* ============================================================
-   MATÉRIEL
-   ============================================================ */
-function specTexte(m){
-  if(m.type==='panneau') return `${fmt(m.w)} Wc`;
-  if(m.type==='batterie') return `${m.tech==='lithium'?'Lithium':'Gel / AGM'} · ${vFr(m.v)} V · ${m.ah} Ah · ${f2(m.v*m.ah/1000)} kWh`;
-  if(m.type==='onduleur') return `${fmt(m.w)} W · ${m.v} V`;
-  if(m.type==='regulateur') return `${m.a} A`;
-  return m.auto==='un' ? 'Ajouté au devis (1)' : m.auto==='panneaux' ? 'Ajouté au devis (× nombre de panneaux)' : m.auto==='batteries' ? 'Ajouté au devis (× nombre de batteries)' : 'Ajout manuel';
-}
-function renderMateriel(){
-  const sans = materiel.filter(m=>!m.prix).length;
-  $('matBox').innerHTML = `
-    <p class="muted small" style="margin:0 0 10px">Renseignez vos références et vos prix. L'application choisit le matériel dans cette liste pour le dimensionnement et chiffre le devis avec vos prix.</p>
-    ${sans?`<div class="alert" style="margin:0 0 10px">⚠ ${sans} article(s) sans prix. Touchez un article pour saisir son prix.</div>`:''}
-    <button class="btn" onclick="ouvrirMateriel(null)">＋ Ajouter un article</button>
-    ${Object.keys(TYPES).map(t=>{
-      const L = mat(t).sort((a,b)=>(a.w||a.a||a.ah||0)-(b.w||b.a||b.ah||0) || a.nom.localeCompare(b.nom,'fr'));
-      return `<div class="grp">${TYPES[t]}</div>` + (L.length ? L.map(m=>`<div class="art" onclick="ouvrirMateriel('${m.id}')"><div class="info"><b>${esc(m.nom)}</b><small>${esc(specTexte(m))}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div></div>`).join('') : '<div class="muted small" style="padding:8px 0">Aucun article.</div>');
-    }).join('')}`;
-}
-let editMat = null;
-function ouvrirMateriel(id){
-  const m = id ? materiel.find(x=>x.id===id) : null;
-  editMat = m ? {...m} : {id:null, type:'panneau', nom:'', prix:0, w:400, tech:'lithium', v:12.8, ah:100, a:60, auto:'non'};
-  openSheet(`<div class="shh"><b>${m?'Modifier l\'article':'Nouvel article'}</b><button class="iconbtn" onclick="closeSheet()">✕</button></div>
-    ${m?'':`<label style="margin-top:0">Type</label><div class="chips" id="emType"></div>`}
-    <div id="emChamps"></div>
-    <button class="btn" style="margin-top:14px" onclick="enregistrerMateriel()">💾 Enregistrer</button>
-    ${m?`<button class="btn danger" style="margin-top:8px" onclick="supprimerMateriel('${m.id}')">🗑 Supprimer</button>`:''}`);
-  renderChampsMat();
-}
-function renderChampsMat(){
-  const e = editMat;
-  if($('emType')) $('emType').innerHTML = Object.entries(TYPES).map(([t,n])=>`<button class="chip ${e.type===t?'on':''}" onclick="editMat.type='${t}';lireChampsMat();renderChampsMat()">${esc(n.split(' (')[0])}</button>`).join('');
-  let h = `<label>Nom (laissez vide pour un nom automatique)</label><input id="emNom" type="text" value="${esc(e.nom)}" placeholder="${esc(e.type==='autre'?'Ex : Câble solaire 6 mm² (mètre)':nomAuto(e))}" />`;
-  if(e.type==='panneau') h += `<label>Puissance (Wc)</label><input id="emW" type="number" inputmode="decimal" value="${e.w}" />`;
-  if(e.type==='batterie') h += `<label>Technologie</label><div class="chips"><button class="chip ${e.tech==='lithium'?'on':''}" onclick="editMat.tech='lithium';lireChampsMat();renderChampsMat()">Lithium</button><button class="chip ${e.tech==='gel'?'on':''}" onclick="editMat.tech='gel';lireChampsMat();renderChampsMat()">Gel / AGM</button></div>
-    <div class="row"><div><label>Tension (V)</label><input id="emV" type="number" inputmode="decimal" step="0.1" value="${e.v}" /></div><div><label>Capacité (Ah)</label><input id="emAh" type="number" inputmode="decimal" value="${e.ah}" /></div></div>`;
-  if(e.type==='onduleur') h += `<div class="row"><div><label>Puissance (W)</label><input id="emW" type="number" inputmode="decimal" value="${e.w||''}" /></div><div><label>Tension (V)</label><select id="emV">${[12,24,48].map(v=>`<option ${cls(e.v)===v?'selected':''}>${v}</option>`).join('')}</select></div></div>`;
-  if(e.type==='regulateur') h += `<label>Courant maximal (A)</label><input id="emA" type="number" inputmode="decimal" value="${e.a}" />`;
-  if(e.type==='autre') h += `<label>Ajout automatique au devis</label><div class="chips">${[['non','Non'],['un','1 fois'],['panneaux','× panneaux'],['batteries','× batteries']].map(([v,t])=>`<button class="chip ${e.auto===v?'on':''}" onclick="editMat.auto='${v}';lireChampsMat();renderChampsMat()">${t}</button>`).join('')}</div>`;
-  h += `<label>Prix unitaire (F CFA)</label><input id="emPrix" type="number" inputmode="decimal" value="${e.prix||''}" placeholder="0" />`;
-  $('emChamps').innerHTML = h;
-}
-function lireChampsMat(){
-  const e = editMat, g = id => $(id) ? parseFloat($(id).value) : NaN;
-  if($('emNom')) e.nom = $('emNom').value.trim();
-  if($('emPrix')) e.prix = g('emPrix')||0;
-  if($('emW') && !isNaN(g('emW'))) e.w = g('emW');
-  if($('emV') && !isNaN(g('emV'))) e.v = g('emV');
-  if($('emAh') && !isNaN(g('emAh'))) e.ah = g('emAh');
-  if($('emA') && !isNaN(g('emA'))) e.a = g('emA');
-}
-function enregistrerMateriel(){
-  lireChampsMat(); const e = editMat;
-  if(e.type==='panneau' && !(e.w>0)) return toast('Indiquez la puissance');
-  if(e.type==='batterie' && !(e.v>0 && e.ah>0)) return toast('Indiquez la tension et la capacité');
-  if(e.type==='onduleur' && !(e.w>0 && e.v>0)) return toast('Indiquez la puissance et la tension');
-  if(e.type==='regulateur' && !(e.a>0)) return toast('Indiquez le courant');
-  if(e.type==='autre' && !e.nom) return toast('Écrivez le nom de l\'article');
-  if(!e.nom) e.nom = nomAuto(e);
-  if(e.id){ const i = materiel.findIndex(m=>m.id===e.id); materiel[i] = e; } else { e.id = uid('m'); materiel.push(e); }
-  ecrire(K.mat, materiel); renderMateriel(); closeSheet(); toast('Article enregistré ✅');
-}
-function supprimerMateriel(id){
-  const m = materiel.find(x=>x.id===id); if(!m || !confirm('Supprimer « '+m.nom+' » ?')) return;
-  materiel = materiel.filter(x=>x.id!==id); ecrire(K.mat, materiel); renderMateriel(); closeSheet();
-}
-
-/* ============================================================
-   DOCUMENTS : devis et bilan (image / PDF)
-   ============================================================ */
-function enTete(){
-  const r = reglages;
-  return `<div class="brand">${r.logo?`<img src="${r.logo}">`:''}${r.nom.trim()?`<div class="bn">${esc(r.nom.trim())}</div>`:''}${r.adresse.trim()?`<div class="ba">${esc(r.adresse.trim())}</div>`:''}</div>`;
-}
-function piedDoc(){ return reglages.pied.trim() ? `<div class="foot">${esc(reglages.pied.trim())}</div>` : ''; }
-function docDevis(){
-  const r = calculer(), t = totalLignes(), rem = Math.min(S.devis.remise||0, t), L = S.devis.lines.filter(l=>l.des.trim()||l.pu);
-  const sys = r.vide ? '' : `<div class="sys"><div><small>Puissance solaire</small><b>${f2(r.pan.Wc/1000)} kWc · ${r.pan.n} panneau${r.pan.n>1?'x':''}</b></div>
-    <div><small>Stockage</small><b>${f2(r.bat.Wh/1000)} kWh · ${r.bat.units} batterie${r.bat.units>1?'s':''}</b></div>
-    <div><small>Onduleur</small><b>${fmt(r.inv.w)} W · ${r.V} V</b></div>
-    <div><small>Production estimée</small><b>${f2(r.Eprod/1000)} kWh / jour</b></div></div>`;
-  return `<div class="top">${enTete()}<div class="ttl"><h3>DEVIS</h3><div>N° ${esc(S.num)}</div><div>${esc(dCourt(S.date))}</div></div></div>
-    <div class="cl"><b>Client :</b> ${esc(S.client)}${S.tel?`<br><b>Tél :</b> ${esc(S.tel)}`:''}${S.lieu?`<br><b>Site :</b> ${esc(S.lieu)}`:''}</div>
-    ${S.devis.objet.trim()?`<div class="objet"><b>Objet :</b> ${esc(S.devis.objet.trim())}</div>`:''}${sys}
-    <table><thead><tr><th>Désignation</th><th class="r">Qté</th><th class="r">P.U.</th><th class="r">Total</th></tr></thead><tbody>
-    ${L.map(l=>`<tr><td>${esc(l.des)}</td><td class="r">${fmt(l.qte)}</td><td class="r">${fmt(l.pu)}</td><td class="r">${fmt(l.qte*l.pu)}</td></tr>`).join('')}</tbody></table>
-    <div class="sum">${rem?`<div><span>Sous-total</span><span>${fmt(t)}</span></div><div><span>Remise</span><span>− ${fmt(rem)}</span></div>`:''}<div class="grand"><span>TOTAL</span><span>${fmt(t-rem)} F CFA</span></div></div>
-    ${S.devis.note.trim()?`<div class="note">${esc(S.devis.note.trim())}</div>`:''}
-    <div class="disc">Dimensionnement préliminaire établi à partir des appareils déclarés par le client, à confirmer après visite technique.</div>${piedDoc()}`;
-}
-function docBilan(){
-  const r = calculer(), P = S.params, ap = S.appareils.filter(a=>a.qte>0 && a.w>0);
-  const per = {jour:'Jour',nuit:'Nuit',mixte:'Mixte'};
-  return `<div class="top">${enTete()}<div class="ttl"><h3>BILAN</h3><div>Devis N° ${esc(S.num)}</div><div>${esc(dCourt(S.date))}</div></div></div>
-    <div class="cl"><b>Client :</b> ${esc(S.client)}${S.lieu?`<br><b>Site :</b> ${esc(S.lieu)}`:''}</div>
-    <h4>Consommation du client</h4>
-    <table><thead><tr><th>Appareil</th><th class="r">Qté</th><th class="r">Puissance</th><th class="r">H/jour</th><th>Usage</th><th class="r">Wh/jour</th></tr></thead><tbody>
-    ${ap.map(a=>`<tr><td>${esc(a.nom)}</td><td class="r">${fmt(a.qte)}</td><td class="r">${fmt(a.w)} W</td><td class="r">${fmt(a.h)}</td><td>${per[a.per]||''}</td><td class="r">${fmt(a.qte*a.w*a.h)}</td></tr>`).join('')}</tbody></table>
-    ${r.vide?'':`<div class="sum" style="width:70%"><div class="grand"><span>Total par jour</span><span>${fmt(r.Etot)} Wh</span></div>
-      <div><span>dont de jour</span><span>${fmt(r.Ejour)} Wh</span></div><div><span>dont de nuit</span><span>${fmt(r.Enuit)} Wh</span></div><div><span>Puissance installée</span><span>${fmt(r.Pinst)} W</span></div></div>
-    <h4>Hypothèses de calcul</h4>
-    <div class="note" style="margin-top:0">Ensoleillement retenu : ${f1(P.hsp)} kWh/m²/jour · rendement global des panneaux : ${Math.round(P.pr*100)} % · rendement de l'onduleur : ${Math.round(P.etaInv*100)} % · marge de sécurité : ${Math.round(P.marge*100)} % · batteries ${r.lith?'lithium':'gel / AGM'} utilisées à ${Math.round(r.dod*100)} % · autonomie : ${P.aut?P.aut+' jour'+(P.aut>1?'s':''):'nuit seulement'}.</div>`}
-    <div class="disc">Dimensionnement préliminaire, à confirmer après visite technique.</div>${piedDoc()}`;
-}
-function verifierDevis(){
-  if(!S.devis.lines.some(l=>l.des.trim()||l.pu)){ toast('Le devis est vide'); return false; }
-  if(S.devis.lines.some(l=>(l.des.trim()||l.qte) && !l.pu) && !confirm('Certaines lignes n\'ont pas de prix. Créer le document quand même ?')) return false;
-  return true;
-}
-async function capturer(html){
-  if(typeof html2canvas==='undefined') throw new Error('lib');
-  const box = $('sheet'); box.innerHTML = html;
-  await Promise.all([...box.querySelectorAll('img')].map(i=>i.complete?1:new Promise(r=>{i.onload=i.onerror=r;})));
-  return html2canvas(box, { scale:2, backgroundColor:'#ffffff', useCORS:true });
-}
-async function creerPages(){
-  const pages = [docDevis()]; if(S.devis.bilan && S.appareils.some(a=>a.qte>0&&a.w>0)) pages.push(docBilan());
-  const out = []; for(const h of pages) out.push(await capturer(h)); return out;
-}
-const nomFichier = (base,ext) => `${base}_${(S.client||'client').trim().replace(/[^\w\-]+/g,'_')}.${ext}`;
-const blobDe = c => new Promise(r=>c.toBlob(r,'image/png'));
-function telecharger(blob, nom){ const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 4000); }
-
-async function envoyerWhatsApp(){
-  if(!verifierDevis()) return; toast('Création des images…');
-  try{
-    const cv = await creerPages(), noms = [nomFichier('Devis','png'), nomFichier('Bilan','png')];
-    const files = []; for(let i=0;i<cv.length;i++) files.push(new File([await blobDe(cv[i])], noms[i], {type:'image/png'}));
-    const texte = `Bonjour ${S.client||''}, voici votre devis N° ${S.num} d'un montant de ${fmt(totalNet())} F CFA.`;
-    if(navigator.canShare && navigator.canShare({files})){ try{ await navigator.share({files, text:texte}); return; }catch(e){ if(e.name==='AbortError') return; } }
-    files.forEach(f=>telecharger(f, f.name));
-    let tel = (S.tel||'').replace(/\D/g,''); if(tel && reglages.indicatif && !tel.startsWith(reglages.indicatif) && tel.length<=9) tel = reglages.indicatif + tel;
-    toast('Images enregistrées. Joignez-les dans WhatsApp.');
-    setTimeout(()=>window.open((tel?'https://wa.me/'+tel:'https://wa.me/')+'?text='+encodeURIComponent(texte),'_blank'), 900);
-  }catch(e){ toast('Impossible de créer les images'); }
-}
-async function genererPDF(){
-  if(!verifierDevis()) return; toast('Création du PDF…');
-  try{
-    const cv = await creerPages(), { jsPDF } = window.jspdf, doc = new jsPDF({unit:'pt', format:'a4'});
-    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
-    cv.forEach((c,k)=>{
-      if(k>0) doc.addPage();
-      const imgH = c.height*W/c.width, data = c.toDataURL('image/jpeg',0.95); let y = 0;
-      doc.addImage(data,'JPEG',0,y,W,imgH);
-      while(imgH+y > H+1){ y -= H; doc.addPage(); doc.addImage(data,'JPEG',0,y,W,imgH); }
-    });
-    doc.save(nomFichier('Devis','pdf'));
-  }catch(e){ toast('Impossible de créer le PDF'); }
-}
-
-/* ============================================================
-   DOSSIERS, RÉGLAGES, SAUVEGARDE
-   ============================================================ */
-function enregistrerDossier(){
-  if(!S.client.trim() && !S.appareils.length) return toast('Le dossier est vide');
-  const copie = JSON.parse(JSON.stringify(S)); copie.maj = Date.now();
-  const i = S.id ? dossiers.findIndex(d=>d.id===S.id) : -1;
-  if(i>=0) dossiers[i] = copie; else { S.id = uid('d'); copie.id = S.id; dossiers.unshift(copie); }
-  if(ecrire(K.dos, dossiers)){ ecrire(K.etat, S); nonEnregistre = false; toast(i>=0 ? 'Dossier mis à jour ✅' : 'Dossier enregistré ✅'); if(vueCourante==='plus') renderDossiers(); }
-}
-function dossierVide(){ return !S.client.trim() && !S.appareils.length && !S.devis.lines.length; }
-function nouveauDossier(){
-  if(!dossierVide() && nonEnregistre && !confirm('Commencer un nouveau dossier ? Les modifications non enregistrées du dossier en cours seront perdues.')) return;
-  chargerEtude(nouvelleEtude()); vue('besoins');
-}
-function renderDossiers(){
-  const q = ($('rechDos')?.value||'').toLowerCase();
-  const L = [...dossiers].sort((a,b)=>(b.maj||0)-(a.maj||0)).filter(d=>((d.client||'')+' '+(d.lieu||'')+' '+(d.num||'')).toLowerCase().includes(q));
-  $('listeDos').innerHTML = L.length ? L.map(d=>{
-    const e = (d.appareils||[]).reduce((s,a)=>s+a.qte*a.w*a.h,0), tot = ((d.devis||{}).lines||[]).reduce((s,l)=>s+l.qte*l.pu,0);
-    return `<div class="art" onclick="ouvrirDossier('${d.id}')"><div class="info"><b>${esc(d.client||'Sans nom')}${d.id===S.id?'<span class="badge" style="background:#dcfce7;color:#166534">En cours</span>':''}</b><small>${esc(d.num||'')} · ${esc(dCourt(d.date))}${d.lieu?' · '+esc(d.lieu):''} · ${f2(e/1000)} kWh/j</small></div><div class="tt">${tot?fmt(tot):''}</div><button class="iconbtn" onclick="event.stopPropagation();supprimerDossier('${d.id}')">🗑</button></div>`;
-  }).join('') : '<div class="empty">Aucun dossier enregistré.<br>Appuyez sur 💾 en haut de l\'écran pour enregistrer le dossier en cours.</div>';
-}
-function ouvrirDossier(id){
-  const d = dossiers.find(x=>x.id===id); if(!d) return;
-  if(d.id!==S.id && !dossierVide() && nonEnregistre && !confirm('Ouvrir ce dossier ? Les modifications non enregistrées du dossier en cours seront perdues.')) return;
-  chargerEtude(d); vue('besoins'); toast('Dossier ouvert ✅');
-}
-function supprimerDossier(id){
-  const d = dossiers.find(x=>x.id===id); if(!d || !confirm('Supprimer le dossier de « '+(d.client||'Sans nom')+' » ?')) return;
-  dossiers = dossiers.filter(x=>x.id!==id); ecrire(K.dos, dossiers); if(S.id===id){ S.id = null; ecrire(K.etat, S); } renderDossiers();
-}
-function initPlus(){
-  $('rNom').value = reglages.nom; $('rAdresse').value = reglages.adresse; $('rPied').value = reglages.pied; $('rNote').value = reglages.note; $('rIndicatif').value = reglages.indicatif; majLogo();
-  $('dfHsp').value = reglages.hsp; $('dfPr').value = Math.round(reglages.pr*100); $('dfEta').value = Math.round(reglages.etaInv*100); $('dfMarge').value = Math.round(reglages.marge*100); $('dfSimul').value = Math.round(reglages.simul*100);
-  renderDossiers();
-}
-function sauverReglages(){ reglages.nom = $('rNom').value; reglages.adresse = $('rAdresse').value; reglages.pied = $('rPied').value; reglages.note = $('rNote').value; reglages.indicatif = $('rIndicatif').value.replace(/\D/g,''); ecrire(K.reg, reglages); }
-function majDefaut(k,val,div){ const n = parseFloat(val); if(isNaN(n)||n<=0) return; reglages[k] = n/div; ecrire(K.reg, reglages); }
-function choisirLogo(e){
-  const f = e.target.files[0]; if(!f) return;
-  const r = new FileReader();
-  r.onload = ev => { const img = new Image(); img.onload = () => {
-    const max = 360, s = Math.min(1, max/Math.max(img.width,img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width*s); c.height = Math.round(img.height*s);
-    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height);
-    reglages.logo = c.toDataURL('image/png'); ecrire(K.reg, reglages); majLogo(); toast('Logo enregistré ✅'); };
-    img.src = ev.target.result; };
-  r.readAsDataURL(f); e.target.value = '';
-}
-function retirerLogo(){ reglages.logo = ''; ecrire(K.reg, reglages); majLogo(); }
-function majLogo(){ const p = $('logo-preview'); p.src = reglages.logo||''; p.style.display = reglages.logo ? 'block' : 'none'; }
-function exporterSauvegarde(){ telecharger(new Blob([JSON.stringify({appli:'soladima', materiel, dossiers, reglages}, null, 1)], {type:'application/json'}), `sauvegarde-soladima-${aujourdhui()}.json`); }
-function importerSauvegarde(e){
-  const f = e.target.files[0]; if(!f) return; const r = new FileReader();
-  r.onload = ev => { try{
-    const d = JSON.parse(ev.target.result); if(!Array.isArray(d.materiel) && !Array.isArray(d.dossiers)) throw new Error('format');
-    if(!confirm('Remplacer les données actuelles par cette sauvegarde ?')) return;
-    if(Array.isArray(d.materiel)) materiel = d.materiel; if(Array.isArray(d.dossiers)) dossiers = d.dossiers; if(d.reglages) reglages = {...reglages, ...d.reglages};
-    ecrire(K.mat, materiel); ecrire(K.dos, dossiers); ecrire(K.reg, reglages); initPlus(); toast('Sauvegarde restaurée ✅');
-  }catch(err){ toast('Fichier invalide'); } };
-  r.readAsText(f); e.target.value = '';
-}
-
-/* ============================================================
-   Démarrage
-   ============================================================ */
-(function init(){
-  try{ if(localStorage.getItem(K.dark)==='1') document.body.classList.add('dark'); }catch(e){}
-  reglages = {...reglages, ...lire(K.reg, {})};
-  materiel = lire(K.mat, null); if(!Array.isArray(materiel) || !materiel.length){ materiel = materielParDefaut(); ecrire(K.mat, materiel); }
-  dossiers = lire(K.dos, []);
-  majDatalistAp();
-  const e = lire(K.etat, null);
-  chargerEtude(e && Array.isArray(e.appareils) ? e : nouvelleEtude());
-  vue('besoins');
-})();
-
-/* ---------- Installation / hors ligne (PWA) ---------- */
-if('serviceWorker' in navigator && /^https?:$/.test(location.protocol)){
-  window.addEventListener('load', ()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
-}
-</script>
+<script src="climat.js"></script>
+<script src="donnees.js"></script>
+<script src="calcul.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

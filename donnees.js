@@ -62,6 +62,8 @@ function specBatterie(tech, v, ah){
   return tech==='lithium' ? { iCh: Math.round(ah*0.5), iDech: Math.min(200, ah) }      // BMS : 0,5 C en charge, 1 C en décharge
                           : { iCh: Math.round(ah*0.2), iDech: Math.round(ah*0.5) };    // gel/AGM : 0,2 C en charge
 }
+// Âme et métal par défaut d'un câble selon son usage
+function specCable(usage){ return usage==='ac' ? { ame:'rigide', metal:'cuivre' } : { ame:'souple', metal:'cuivre' }; }
 function specConvertisseur(w, onde){
   return { onde: onde||'pur', surge: 2, idle: Math.max(6, Math.round(w*0.01)), eta: onde==='modifie' ? 0.88 : 0.90 };
 }
@@ -86,10 +88,12 @@ function materielParDefaut(){
     { w:5500, v:48, pvMax:6000, vocMax:500, mpptMin:120, mpptMax:450, iCharge:100, idle:55, surge:2, eta:0.93 },
     { w:8000, v:48, pvMax:9000, vocMax:500, mpptMin:120, mpptMax:450, iCharge:150, idle:80, surge:2, eta:0.93 }
   ].forEach(h => L.push({ type:'hybride', ...h }));
-  // Câbles (prix au mètre)
-  [4,6,10,16].forEach(s => L.push({ type:'cable', usage:'pv', section:s }));
-  [6,10,16,25,35,50,70,95,120].forEach(s => L.push({ type:'cable', usage:'dc', section:s }));
-  [1.5,2.5,4,6].forEach(s => L.push({ type:'cable', usage:'ac', section:s }));
+  // Câbles (prix au mètre). Panneaux : cuivre étamé souple (câble solaire) ; batterie : cuivre souple ;
+  // 230 V : cuivre rigide, et aluminium rigide pour les grandes longueurs
+  [4,6,10,16].forEach(s => L.push({ type:'cable', usage:'pv', section:s, ...specCable('pv') }));
+  [6,10,16,25,35,50,70,95,120].forEach(s => L.push({ type:'cable', usage:'dc', section:s, ...specCable('dc') }));
+  [1.5,2.5,4,6,10,16].forEach(s => L.push({ type:'cable', usage:'ac', section:s, ...specCable('ac') }));
+  [16,25,35].forEach(s => L.push({ type:'cable', usage:'ac', section:s, ame:'rigide', metal:'aluminium' }));
   // Protections
   [16,25,32,40,63,80,100,125,160,200,250,300].forEach(c => L.push({ type:'protection', genre:'fusible_dc', calibre:c }));
   [16,25,32,63].forEach(c => L.push({ type:'protection', genre:'sect_pv', calibre:c, vmax:1000 }));
@@ -171,7 +175,51 @@ function specRegulateur(techno, a){
        : { vocMax: a<=40 ? 100 : a<=80 ? 150 : 250, tensions: a<=40 ? [12,24] : [12,24,48] };
 }
 
-const API = { PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
+/* ------------------------------------------------------------------
+   Prix du marché (F CFA, prix unitaire de vente au détail) : fourchette [minimum, maximum].
+   Calés sur des prix relevés en ligne en novembre 2026 chez des revendeurs du Cameroun, du Sénégal
+   et du Mali (ex. panneau 550 W : 70 000 à 115 000 ; batterie gel 12 V 200 Ah : 120 000 à 265 000 ;
+   lithium 48 V 100 Ah : dès 537 000 ; MPPT 60 A : 110 000 à 125 000 ; disjoncteur DC 250 A : 40 000),
+   le maximum incluant une marge pour le transport jusqu'au Tchad. Les formules couvrent aussi les
+   articles ajoutés par l'utilisateur. Valeurs INDICATIVES : chaque installateur met ses propres prix.
+   ------------------------------------------------------------------ */
+// Arrondi lisible : à 50 F sous 5 000 F, à 500 F au-delà
+const arrondi = x => x < 5000 ? Math.round(x / 50) * 50 : Math.round(x / 500) * 500;
+function prixMarche(m){
+  const f = (a, b) => [arrondi(a), arrondi(Math.max(a, b))];
+  switch(m.type){
+    case 'panneau': return m.w <= 220 ? f(10000 + 125*m.w, 15000 + 250*m.w) : f(125*m.w, 210*m.w);
+    case 'batterie': { const wh = (m.v||12)*(m.ah||100);
+      return m.tech==='lithium' ? f(80*wh + 150000, 110*wh + 190000) : f(25*wh + 65000, 105*wh + 15000); }
+    case 'regulateur': return m.techno==='pwm' ? f(3000 + 350*m.a, 6000 + 700*m.a)
+      : f(1500*m.a + 5000 + (m.vocMax>=250?30000:0), 1900*m.a + 15000 + (m.vocMax>=250?30000:0));
+    case 'convertisseur': return m.onde==='modifie' ? f(10000 + 15*m.w, 20000 + 25*m.w) : f(25000 + 40*m.w, 40000 + 65*m.w);
+    case 'hybride': return f(30000 + 48*m.w, 70000 + 85*m.w);
+    // Câbles au mètre : l'aluminium coûte environ moitié moins que le cuivre ; le rigide un peu moins que le souple
+    case 'cable': return m.metal==='aluminium' ? f(60*m.section + 150, 100*m.section + 300)
+      : (m.ame==='rigide' ? f(130*m.section + 25, 230*m.section + 60) : f(140*m.section + 100, 230*m.section + 200));
+    case 'protection': switch(m.genre){
+      case 'fusible_dc': return f(5000 + 110*m.calibre, 10000 + 160*m.calibre);
+      case 'sect_pv': return f(8000 + 150*m.calibre, 15000 + 250*m.calibre);
+      case 'fusible_pv': return f(3000, 6000);
+      case 'parafoudre_pv': return (m.vmax||600) <= 600 ? f(12000, 20000) : f(15000, 28000);
+      case 'disj_ac': return f(10000 + 200*m.calibre, 18000 + 350*m.calibre);
+      case 'terre': return f(15000, 35000);
+      default: return f(5000, 20000); }
+    case 'autre': {
+      const n = String(m.nom||'').toLowerCase();
+      if(m.auto==='panneaux' || /support|fixation/.test(n)) return f(10000, 20000);
+      if(/install|pose|main/.test(n)) return f(50000, 150000);
+      if(/coffret|petit mat/.test(n)) return f(25000, 60000);
+      if(/transport/.test(n)) return f(10000, 50000);
+      return null; }
+    default: return null;
+  }
+}
+// Prix indicatif d'un groupe électrogène, par kVA (petits groupes à essence, marché tchadien)
+const PRIX_GROUPE_KVA = 80000;
+
+const API = { prixMarche, PRIX_GROUPE_KVA, specCable, PRESETS, specPanneau, specBatterie, specConvertisseur, specHybride, specRegulateur, materielParDefaut, suggerer, puissanceDansNom };
 G.DONNEES = API;
 if(typeof module==='object' && module.exports) module.exports = API;
 })(typeof globalThis!=='undefined' ? globalThis : this);

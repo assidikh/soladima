@@ -27,7 +27,10 @@ const ETA_MPPT = 0.96, ETA_CHARGEUR = 0.90;
 const RHO_CU = 0.0225;              // résistivité du cuivre chaud (Ω·mm²/m)
 // Courants admissibles (A), cuivre isolé PVC, 2 conducteurs chargés, pose apparente (CEI 60364-5-52, méthode C), à 30 °C
 const IZ = { 1.5:19.5, 2.5:27, 4:36, 6:46, 10:63, 16:85, 25:112, 35:138, 50:168, 70:213, 95:258, 120:299 };
-const K_TEMP_CABLE = 0.87;          // correction pour 40 °C ambiant (PVC)
+const K_TEMP_CABLE = 0.87;
+// Aluminium : même méthode de pose (CEI 60364-5-52, méthode C, PVC, 30 °C) ; résistivité à chaud
+const IZ_AL = { 2.5:21, 4:28, 6:36, 10:49, 16:66, 25:83, 35:103, 50:125, 70:160, 95:195, 120:226 };
+const RHO_AL = 0.036;          // correction pour 40 °C ambiant (PVC)
 const SECTIONS = Object.keys(IZ).map(Number).sort((a,b)=>a-b);
 const CALIBRES_DC = [10,16,20,25,32,40,50,63,80,100,125,160,200,250,300,400];
 const CALIBRES_AC = [10,16,20,25,32,40,50,63];
@@ -38,7 +41,7 @@ const PRIX_INDICATIF = {
   panneau: m => m.w*(m.w<=220 ? 200 : m.w<=380 ? 140 : 115),
   batterie: m => (m.tech==='lithium'?300:110)*m.v*m.ah + 5000,
   regulateur: m => (m.techno==='pwm'?600:2500)*m.a + 15000, convertisseur: m => (m.onde==='modifie'?50:90)*m.w,
-  hybride: m => 110*m.w, cable: m => 150*m.section, protection: () => 8000, autre: () => 0
+  hybride: m => 110*m.w, cable: m => (m.metal==='aluminium' ? 70 : 150)*m.section, protection: () => 8000, autre: () => 0
 };
 
 const cls = v => v < 18 ? 12 : (v < 36 ? 24 : 48);
@@ -56,7 +59,10 @@ function nomAuto(m){
     case 'regulateur': return `Régulateur solaire ${m.techno==='pwm'?'PWM':'MPPT'} ${m.a} A${m.techno==='mppt'?` (${m.vocMax} V max)`:''}`;
     case 'convertisseur': return `Convertisseur ${m.onde==='modifie'?'onde modifiée':'pur sinus'} ${m.w} W ${m.v} V`;
     case 'hybride': return `Onduleur hybride ${m.w} W ${m.v} V pur sinus (MPPT ${m.pvMax} W intégré)`;
-    case 'cable': return `Câble ${m.usage==='pv'?'solaire':m.usage==='ac'?'électrique':'batterie'} ${vFr(m.section)} mm² (mètre)`;
+    case 'cable': {
+      const al = m.metal==='aluminium', rig = m.ame==='rigide';
+      const ref = m.usage==='pv' ? 'H1Z2Z2-K' : al ? 'AR2V' : m.usage==='dc' ? 'H07RN-F' : rig ? 'H07V-U / R2V' : 'H07V-K';
+      return `Câble ${m.usage==='pv'?'solaire':m.usage==='ac'?'230 V':'batterie'} ${al?'aluminium':(m.usage==='pv'?'cuivre étamé':'cuivre')} ${rig?'rigide':'souple'} ${vFr(m.section)} mm² (${ref}, le mètre)`; }
     case 'protection': return ({
       fusible_dc:`Fusible / disjoncteur DC ${m.calibre} A (batterie)`, sect_pv:`Interrupteur-sectionneur DC ${m.calibre} A (panneaux)`,
       fusible_pv:`Fusible de chaîne PV ${m.calibre} A`, parafoudre_pv:`Parafoudre DC panneaux ${m.vmax} V`,
@@ -148,16 +154,29 @@ function sectionCable(I, L, V, dvMax, calibre){
   const S = SECTIONS.find(s => s >= sDv && IZ[s]*K_TEMP_CABLE >= Math.max(I, calibre||0)) || SECTIONS[SECTIONS.length-1];
   return { S, dv: 2*RHO_CU*L*I/(S*V), Iz: IZ[S]*K_TEMP_CABLE };
 }
+/* Choix du câble dans le catalogue : le moins cher qui respecte la chute de tension et tient le calibre de la
+   protection, compte tenu de son métal. Côté panneaux et batterie, seul le cuivre souple est admis (cosses,
+   vibrations, corrosion de l'aluminium sur les bornes) ; côté 230 V, cuivre ou aluminium, souple ou rigide. */
+function cableAdmis(m, usage){ return usage==='ac' || ((m.ame||'souple')==='souple' && (m.metal||'cuivre')==='cuivre'); }
+function choisirCable(mat, usage, I, L, V, dvMax, calibre, sMin){
+  const ok = (mat||[]).filter(m => m.type==='cable' && m.usage===usage && m.section >= (sMin||0) && cableAdmis(m, usage)).map(m => {
+    const al = m.metal==='aluminium', iz = (al ? IZ_AL : IZ)[m.section]; if(!iz) return null;
+    const dv = 2*(al ? RHO_AL : RHO_CU)*L*I/(m.section*V);
+    return (dv <= dvMax && iz*K_TEMP_CABLE >= Math.max(I, calibre||0)) ? { m, S:m.section, dv, cle:cout(m) } : null;
+  }).filter(Boolean).sort((a,b) => a.cle-b.cle || a.S-b.S);
+  if(ok.length) return ok[0];
+  const S = Math.max(sMin||0, sectionCable(I, L, V, dvMax, calibre).S);
+  return { m:{ type:'cable', usage, section:S, ame: usage==='ac'?'rigide':'souple', metal:'cuivre', prix:0 }, S, dv: 2*RHO_CU*L*I/(S*V) };
+}
 const calibreSup = (I, liste) => liste.find(c => c >= I) || liste[liste.length-1];
 
-function cablesProtections(r, P, c){
+function cablesProtections(r, P, c, mat){
   const cab = [], prot = [], V = r.V, T = TECH[P.tech];
   // 1) Panneaux → régulateur / onduleur hybride (par entrée)
   const pv = r.pv, nEntrees = r.reg ? r.reg.n : 1, npE = Math.ceil(pv.np / nEntrees);
   const Ipv = 1.25 * pv.m.isc * npE, Vpv = pv.m.vmp * pv.ns;
-  const sPv = sectionCable(Ipv, P.lPv, Vpv, 0.03, 0);
-  const sPvS = SECTIONS.find(s => s >= Math.max(4, sPv.S)) ;
-  cab.push({ lien:'Panneaux → ' + (r.hyb ? 'onduleur hybride' : 'régulateur'), usage:'pv', I:Ipv, L:P.lPv, S:sPvS, dv: 2*RHO_CU*P.lPv*Ipv/(sPvS*Vpv), n:nEntrees });
+  const cPv = choisirCable(mat, 'pv', Ipv, P.lPv, Vpv, 0.03, 0, 4);
+  cab.push({ lien:'Panneaux → ' + (r.hyb ? 'onduleur hybride' : 'régulateur'), usage:'pv', I:Ipv, L:P.lPv, S:cPv.S, dv:cPv.dv, m:cPv.m, n:nEntrees });
   const vocChaine = tensionsPanneau(pv.m, c).vocF * pv.ns;
   prot.push({ genre:'sect_pv', calibre: calibreSup(Ipv, CALIBRES_PV.concat([40,50,63])), vmin: vocChaine, n:nEntrees, pourquoi:'Couper les panneaux pour intervenir en sécurité' });
   prot.push({ genre:'parafoudre_pv', calibre:0, vmin: vocChaine*1.2, n:nEntrees, pourquoi:'Orages fréquents en saison des pluies' });
@@ -167,23 +186,23 @@ function cablesProtections(r, P, c){
   }
   // 2) Régulateur → batterie
   if(r.reg){
-    const I = r.reg.m.a, cal = calibreSup(1.25*I, CALIBRES_DC), s = sectionCable(I, Math.max(1, P.lBat), V, 0.015, cal);
-    cab.push({ lien:'Régulateur → batterie', usage:'dc', I, L:Math.max(1,P.lBat), S:s.S, dv:s.dv, n:r.reg.n });
+    const I = r.reg.m.a, cal = calibreSup(1.25*I, CALIBRES_DC), s = choisirCable(mat, 'dc', I, Math.max(1, P.lBat), V, 0.015, cal);
+    cab.push({ lien:'Régulateur → batterie', usage:'dc', I, L:Math.max(1,P.lBat), S:s.S, dv:s.dv, m:s.m, n:r.reg.n });
     prot.push({ genre:'fusible_dc', calibre:cal, n:r.reg.n, pourquoi:'Protège le câble régulateur–batterie' });
   }
   // 3) Batterie → onduleur / convertisseur, ou départ des circuits 12 V
   const ond = r.hyb || r.conv;
   if(ond){
     const Imax = ond.m.w / (ond.m.eta * T.vMin * V/12);       // courant continu à pleine puissance, batterie basse
-    const cal = calibreSup(1.25*Imax, CALIBRES_DC), s = sectionCable(Imax, P.lBat, V, 0.02, cal);
-    cab.push({ lien:'Batterie → ' + (r.hyb?'onduleur hybride':'convertisseur'), usage:'dc', I:Imax, L:P.lBat, S:s.S, dv:s.dv, n:1 });
+    const cal = calibreSup(1.25*Imax, CALIBRES_DC), s = choisirCable(mat, 'dc', Imax, P.lBat, V, 0.02, cal);
+    cab.push({ lien:'Batterie → ' + (r.hyb?'onduleur hybride':'convertisseur'), usage:'dc', I:Imax, L:P.lBat, S:s.S, dv:s.dv, m:s.m, n:1 });
     prot.push({ genre:'fusible_dc', calibre:cal, n:1, pourquoi:'Fusible au plus près de la borne + de la batterie' });
-    const Iac = ond.m.w / 230, calAc = calibreSup(Iac, CALIBRES_AC), sAc = sectionCable(Iac, P.lAc, 230, 0.03, calAc);
-    cab.push({ lien:'Sortie 230 V → tableau', usage:'ac', I:Iac, L:P.lAc, S:Math.max(1.5,sAc.S), dv:sAc.dv, n:1 });
+    const Iac = ond.m.w / 230, calAc = calibreSup(Iac, CALIBRES_AC), sAc = choisirCable(mat, 'ac', Iac, P.lAc, 230, 0.03, calAc, 1.5);
+    cab.push({ lien:'Sortie 230 V → tableau', usage:'ac', I:Iac, L:P.lAc, S:sAc.S, dv:sAc.dv, m:sAc.m, n:1 });
     prot.push({ genre:'disj_ac', calibre:calAc, n:1, pourquoi:'Protection des personnes (différentiel 30 mA) et du circuit 230 V' });
   } else {
-    const I = r.besoins.Ppointe / (T.vMin), cal = calibreSup(1.25*I, CALIBRES_DC), s = sectionCable(I, P.lAc, 12, 0.03, cal);
-    cab.push({ lien:'Batterie → circuits 12 V', usage:'dc', I, L:P.lAc, S:s.S, dv:s.dv, n:1 });
+    const I = r.besoins.Ppointe / (T.vMin), cal = calibreSup(1.25*I, CALIBRES_DC), s = choisirCable(mat, 'dc', I, P.lAc, 12, 0.03, cal);
+    cab.push({ lien:'Batterie → circuits 12 V', usage:'dc', I, L:P.lAc, S:s.S, dv:s.dv, m:s.m, n:1 });
     prot.push({ genre:'fusible_dc', calibre:cal, n:1, pourquoi:'Fusible général des circuits 12 V' });
   }
   prot.push({ genre:'terre', calibre:0, n:1, pourquoi:'Mise à la terre des cadres de panneaux et de l\'onduleur' });
@@ -219,7 +238,7 @@ function finaliser(r, B, P, c, mat, ch, T, Y, Breq, prodMois){
   r.prodAn = sum(prodMois.map((x,i)=>x*JOURS_MOIS[i]))/1000;
   r.surplusAn = sum(prodMois.map((x,i)=>Math.max(0,x-Breq.net)*JOURS_MOIS[i]))/1000;
   r.deficitMois = prodMois.map((x,i)=>Math.max(0,Breq.net - x)*JOURS_MOIS[i]/1000);
-  const cp = cablesProtections(r, P, c); r.cables = cp.cables; r.protections = cp.protections;
+  const cp = cablesProtections(r, P, c, mat); r.cables = cp.cables; r.protections = cp.protections;
   r.lignes = lignes(r, mat);
   r.total = sum(r.lignes.map(l => l.qte*l.pu));
   r.prixComplet = r.lignes.every(l => l.pu > 0);
@@ -379,14 +398,9 @@ function lignes(r, mat){
   if(r.reg) L.push(ligne(r.reg.m, r.reg.n, 'reg'));
   if(r.conv) L.push(ligne(r.conv.m, 1, 'conv'));
   // Câbles : regroupés par usage et section, longueur aller + retour, +10 % de chutes
-  const parSection = {};
-  (r.cables||[]).forEach(cb => { const k = cb.usage+'|'+cb.S; parSection[k] = (parSection[k]||0) + 2*cb.L*cb.n*1.1; });
-  Object.entries(parSection).forEach(([k, metres]) => {
-    const [usage, S] = k.split('|'), s = +S;
-    const m = trouver(mat, 'cable', x => x.usage===usage && x.section >= s, (a,b) => a.section-b.section)
-           || { type:'cable', usage, section:s, prix:0 };
-    L.push(ligne(m, Math.ceil(metres), 'cable'));
-  });
+  const parCable = new Map();
+  (r.cables||[]).forEach(cb => { const k = cb.m.id || nomAuto(cb.m); const x = parCable.get(k) || { m:cb.m, metres:0 }; x.metres += 2*cb.L*cb.n*1.1; parCable.set(k, x); });
+  parCable.forEach(({ m, metres }) => L.push(ligne(m, Math.ceil(metres), 'cable')));
   (r.protections||[]).forEach(p => {
     const m = trouver(mat, 'protection', x => x.genre===p.genre && (x.calibre||0) >= (p.calibre||0) && (!p.vmin || (x.vmax||1e9) >= p.vmin),
                       (a,b) => (a.calibre||0)-(b.calibre||0) || (a.vmax||0)-(b.vmax||0))
@@ -456,7 +470,7 @@ function dimensionner(appareils, params, materiel){
   return { vide:false, besoins:B, climat:c, P, archis, recommandee, choisie };
 }
 
-const API = { dimensionner, besoins, chaine, economie, climat, rendementMPPT, tensionsPanneau, sectionCable, configMPPT, choisirBatteries,
+const API = { choisirCable, IZ_AL, RHO_AL, dimensionner, besoins, chaine, economie, climat, rendementMPPT, tensionsPanneau, sectionCable, configMPPT, choisirBatteries,
   nomAuto, cls, TECH, MOIS, JOURS_MOIS, PARAMS_DEFAUT, IZ, K_TEMP_CABLE, RHO_CU, DECLASSEMENT_OND, PART_JOUR_BATT, JOURS_RECHARGE, K_CRETE, ETA_MPPT, DT_CELLULE,
   villes: () => CL.map(x => x.nom) };
 G.SolaCalcul = API;

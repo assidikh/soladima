@@ -22,7 +22,7 @@ function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('sho
 
 let reglages = { nom:'', adresse:'', pied:'', note:'Devis valable 15 jours. Prix donnés à titre préliminaire, à confirmer après visite technique.', indicatif:'235', logo:'',
   ville:"N'Djaména", tech:'lithium', aut:0.5, poussiere:0.05, marge:0.10, simul:1,
-  prixEssence:700, prixGasoil:800, prixGroupeKva:0, entretienHeure:100, prixKwhAppoint:0, catalogue:0 };
+  prixEssence:700, prixGasoil:800, prixGroupeKva:DONNEES.PRIX_GROUPE_KVA, entretienHeure:100, prixKwhAppoint:0, catalogue:0, niveauPrix:'moyen' };
 let materiel = [], dossiers = [], S = null, vueCourante = 'besoins', nonEnregistre = false, versionMat = 0;
 
 /* ---------- Fenêtre (avec bouton Retour d'Android) ---------- */
@@ -51,25 +51,43 @@ const CHAMPS = {
   autre: []
 };
 const nomAuto = m => SC.nomAuto(m);
-const cleMat = m => [m.type, m.techno, m.tech, m.w, m.v, m.ah, m.a, m.onde, m.usage, m.section, m.genre, m.calibre, m.vmax, m.nom && m.type==='autre' ? m.nom : ''].join('|');
+const cleMat = m => [m.type, m.techno, m.tech, m.w, m.v, m.ah, m.a, m.onde, m.usage, m.section, m.metal, m.ame, m.genre, m.calibre, m.vmax, m.nom && m.type==='autre' ? m.nom : ''].join('|');
+/* Prix : chaque article a un prix minimum et un prix maximum (prixMin, prixMax). Le prix utilisé dans les devis
+   (m.prix) en est déduit selon le réglage « niveauPrix » : minimum, moyen ou maximum. */
+function prixDe(m){
+  const a = +m.prixMin||0, b = +m.prixMax||0; if(!a && !b) return 0;
+  const lo = Math.min(a||b, b||a), hi = Math.max(a||b, b||a);
+  return reglages.niveauPrix==='min' ? lo : reglages.niveauPrix==='max' ? hi : Math.round((lo+hi)/2/50)*50;
+}
+function completerPrix(m){
+  if(m.prixMin===undefined && m.prixMax===undefined){
+    if(m.prix > 0){ m.prixMin = m.prixMax = m.prix; m.prixDefaut = false; }               // prix déjà saisi par l'utilisateur
+    else { const p = DONNEES.prixMarche(m); if(p){ [m.prixMin, m.prixMax] = p; m.prixDefaut = true; } }   // prix du marché indicatif
+  }
+  m.prix = prixDe(m);
+}
+function appliquerPrix(){ materiel.forEach(m => m.prix = prixDe(m)); }
+function setNiveauPrix(v){ reglages.niveauPrix = v; ecrire(K.reg, reglages); appliquerPrix(); ecrire(K.mat, materiel); versionMat++; renderMateriel(); toast('Les devis utiliseront le prix ' + ({min:'minimum', moyen:'moyen', max:'maximum'})[v]); }
 function migrerMateriel(L){
-  const ancienNom = /^(Panneau solaire \d|Batterie (lithium|gel)|Onduleur pur sinus|Régulateur solaire MPPT \d+ A$|Onduleur hybride \d+ W \d+ V \(MPPT)/;
+  const ancienNom = /^(Panneau solaire \d|Batterie (lithium|gel)|Onduleur pur sinus|Régulateur solaire MPPT \d+ A$|Onduleur hybride \d+ W \d+ V \(MPPT|Câble (solaire|batterie|électrique) [\d,]+ mm²)/;
   L.forEach(m => {
     if(m.type==='onduleur'){ m.type = 'convertisseur'; Object.assign(m, { ...specConvertisseur(m.w,'pur'), ...m, type:'convertisseur' }); m.onde = m.onde||'pur'; }
     if(m.type==='panneau' && !(m.voc>0)) Object.assign(m, specPanneau(m.w||400), { w:m.w });
     if(m.type==='batterie' && !(m.iCh>0)) Object.assign(m, specBatterie(m.tech, m.v, m.ah));
     if(m.type==='regulateur' && !m.techno){ m.techno = 'mppt'; m.vocMax = m.a<=40 ? 100 : 150; m.tensions = m.a<=40 ? [12,24] : [12,24,48]; }
     if(m.type==='convertisseur'){ const d = specConvertisseur(m.w, m.onde); for(const k in d) if(m[k]===undefined) m[k] = d[k]; }
+    if(m.type==='cable' && !m.metal) Object.assign(m, DONNEES.specCable(m.usage));
     if(m.type!=='autre' && (!m.nom || ancienNom.test(m.nom))) m.nom = nomAuto(m);
   });
-  if(reglages.catalogue < 2){
+  if(reglages.catalogue < 3){
     const exist = new Set(L.map(cleMat));
     DONNEES.materielParDefaut().forEach(m => { const x = { id:uid('m'), prix:0, ...m }; x.nom = x.nom || nomAuto(x); if(!exist.has(cleMat(x))) L.push(x); });
-    reglages.catalogue = 2; ecrire(K.reg, reglages);
+    reglages.catalogue = 3; ecrire(K.reg, reglages);
   }
+  L.forEach(completerPrix);
   return L;
 }
-function materielParDefaut(){ return DONNEES.materielParDefaut().map(m => { const x = { id:uid('m'), prix:0, ...m }; x.nom = x.nom || nomAuto(x); return x; }); }
+function materielParDefaut(){ return DONNEES.materielParDefaut().map(m => { const x = { id:uid('m'), prix:0, ...m }; x.nom = x.nom || nomAuto(x); completerPrix(x); return x; }); }
 const mat = t => materiel.filter(m => m.type===t);
 
 /* ============================================================
@@ -356,6 +374,13 @@ function renderResultats(){
   if(r.vide){ $('sysComparaison').style.display='block'; $('sysComparaison').innerHTML = '<h2>Solutions possibles</h2><div class="empty">Ajoutez d\'abord les appareils du client dans l\'onglet Besoins.</div>'; return; }
   renderComparaison(r); renderDetail(r); renderProduction(r); renderCables(r); renderEco(r);
 }
+// Fourchette de prix d'une solution : somme des prix minimum et maximum de ses lignes
+function fourchette(a){
+  let lo = 0, hi = 0;
+  a.lignes.forEach(l => { const m = l.id && materiel.find(x => x.id===l.id); lo += l.qte*(m ? (+m.prixMin||l.pu) : l.pu); hi += l.qte*(m ? (+m.prixMax||l.pu) : l.pu); });
+  const k = x => fmt(Math.round(x/1000)*1000);
+  return `${k(lo)} – ${k(hi)} F CFA`;
+}
 function resumeArchi(a){
   if(!a.faisable) return '';
   const p = [`${a.pv.N} × ${a.pv.m.w} Wc`, `${a.bat.units} batt. (${f2(a.bat.Wh/1000)} kWh)`];
@@ -369,10 +394,11 @@ function renderComparaison(r){
     <p class="muted small" style="margin:0 0 8px">Touchez une solution pour la retenir dans le devis. ${r.choisie && r.choisie.prixComplet ? '' : 'Tant que des prix manquent, le classement utilise des prix indicatifs internes.'}</p>
     ${r.archis.map(a => `<div class="solu ${a.faisable?'':'non'} ${r.choisie===a?'sel':''}" ${a.faisable?`onclick="choisirArchi('${a.id}')"`:''}>
       <div class="solu-t"><b>${esc(a.nom)}</b>${a.recommandee?'<span class="badge ok">Recommandée</span>':''}${r.choisie===a?'<span class="badge sel">Retenue</span>':''}</div>
-      ${a.faisable ? `<small>${esc(resumeArchi(a))}</small><div class="solu-p">${a.prixComplet?fmt(a.total)+' F CFA':'Prix incomplets'}</div>`
+      ${a.faisable ? `<small>${esc(resumeArchi(a))}</small><div class="solu-p">${a.prixComplet?fmt(a.total)+' F CFA':'Prix incomplets'}</div>${a.prixComplet?`<small>Fourchette du marché : ${fourchette(a)}</small>`:''}`
                    : `<small>✖ ${esc(a.raisons.join(' '))}</small>`}
     </div>`).join('')}`;
 }
+const ficheDepliable = m => `<details class="fiche-mini"><summary>Voir la fiche ${iconeMat(m)}</summary>${ficheMateriel(m)}</details>`;
 function renderDetail(r){
   const a = r.choisie, box = $('sysResultats');
   if(!a){ box.innerHTML = '<h2>Système proposé</h2><div class="alert">Aucune solution possible avec votre matériel actuel. Ajoutez des références dans l\'onglet Matériel.</div>'; return; }
@@ -382,12 +408,12 @@ function renderDetail(r){
   box.innerHTML = `<h2>Système proposé : ${esc(a.nom)}</h2>
     <p class="muted small" style="margin:0 0 6px">${esc(a.description)}</p>
     <div class="res"><div class="ic">🔆</div><div class="tx"><b>${pv.N} × ${esc(pv.m.nom)}</b><small>${fmt(pv.Wc)} Wc · ${pv.ns} en série × ${pv.np} en parallèle${a.reg&&a.reg.n>1?` (répartis sur ${a.reg.n} régulateurs)`:''} · inclinaison ${c.angle}° plein sud<br>
-      Tension d'une chaîne : ${f1(pv.vocF*pv.ns)} V à vide par matin froid (max ${vMax} V) · ${f1(pv.vmpC*pv.ns)} V en plein soleil à ${Math.round(pv.tcMax)} °C${pv.mode==='PWM'?`<br>Régulateur PWM : ${Math.round(pv.ratio*100)} % de la puissance des panneaux est utilisée`:''}</small></div></div>
+      Tension d'une chaîne : ${f1(pv.vocF*pv.ns)} V à vide par matin froid (max ${vMax} V) · ${f1(pv.vmpC*pv.ns)} V en plein soleil à ${Math.round(pv.tcMax)} °C${pv.mode==='PWM'?`<br>Régulateur PWM : ${Math.round(pv.ratio*100)} % de la puissance des panneaux est utilisée`:''}</small>${ficheDepliable(pv.m)}</div></div>
     <div class="res"><div class="ic">🔋</div><div class="tx"><b>${a.bat.units} × ${esc(a.bat.m.nom)}</b><small>${a.bat.series>1?`${a.bat.series} en série × `:''}${a.bat.par} en parallèle · ${f2(a.bat.Wh/1000)} kWh installés · ${f2(a.bat.usable/1000)} kWh utiles nécessaires (${AUTONOMIES.find(x=>x[0]===r.P.aut)?.[1]||''})<br>
-      Décharge ${Math.round(T.dod*100)} % max · courant de décharge ${arr(a.bat.Idech)} A · de charge ${arr(a.bat.Ich)} A</small></div></div>
-    ${a.hyb?`<div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(a.hyb.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.hyb.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour) · système ${a.V} V</small></div></div>`:''}
-    ${a.reg?`<div class="res"><div class="ic">🎛️</div><div class="tx"><b>${a.reg.n} × ${esc(a.reg.m.nom)}</b><small>Courant de charge des panneaux : ${arr(a.reg.Ich)} A · système ${a.V} V</small></div></div>`:''}
-    ${a.conv?`<div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(a.conv.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.conv.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour)</small></div></div>`:''}
+      Décharge ${Math.round(T.dod*100)} % max · courant de décharge ${arr(a.bat.Idech)} A · de charge ${arr(a.bat.Ich)} A</small>${ficheDepliable(a.bat.m)}</div></div>
+    ${a.hyb?`<div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(a.hyb.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.hyb.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour) · système ${a.V} V</small>${ficheDepliable(a.hyb.m)}</div></div>`:''}
+    ${a.reg?`<div class="res"><div class="ic">🎛️</div><div class="tx"><b>${a.reg.n} × ${esc(a.reg.m.nom)}</b><small>Courant de charge des panneaux : ${arr(a.reg.Ich)} A · système ${a.V} V</small>${ficheDepliable(a.reg.m)}</div></div>`:''}
+    ${a.conv?`<div class="res"><div class="ic">⚡</div><div class="tx"><b>${esc(a.conv.m.nom)}</b><small>Pointe ${arr(a.besoins.Ppointe)} W, démarrage ${arr(a.besoins.Pstart)} W · consommation à vide ${a.conv.m.idle} W (${f2(a.chaine.idleWh/1000)} kWh/jour)</small>${ficheDepliable(a.conv.m)}</div></div>`:''}
     <div class="bignum" style="margin-top:10px"><div><small>Consommation des appareils</small><b>${f2(a.besoins.E/1000)} kWh/j</b></div><div><small>À fournir par les panneaux</small><b>${f2(a.besoinNet/1000)} kWh/j</b></div>
       <div><small>Production en ${SC.MOIS[a.moisCritique].toLowerCase()} (mois critique)</small><b>${f2(a.prodMois[a.moisCritique]/1000)} kWh/j</b></div><div><small>Production sur l'année</small><b>${fmt(Math.round(a.prodAn))} kWh</b></div></div>
     ${manque?`<div class="alert">⚠ ${manque} ligne(s) sans prix : renseignez vos prix dans l'onglet Matériel.</div>`:''}
@@ -431,8 +457,8 @@ function renderCables(r){
   if(!a){ box.style.display = 'none'; return; }
   box.innerHTML = `<h2>Câbles et protections</h2>
     <table class="tab"><tr><th>Liaison</th><th class="r">Courant</th><th class="r">Longueur</th><th class="r">Section</th></tr>
-    ${a.cables.map(c=>`<tr><td>${esc(c.lien)}${c.n>1?` (×${c.n})`:''}</td><td class="r">${f1(c.I)} A</td><td class="r">${f1(c.L)} m</td><td class="r"><b>${String(c.S).replace('.',',')} mm²</b></td></tr>`).join('')}</table>
-    <p class="muted small">Cuivre, chute de tension limitée à 3 % côté panneaux, 1,5 à 2 % côté batterie ; courant admissible corrigé pour 40 °C. Longueurs aller simple (réglables plus bas).</p>
+    ${a.cables.map(c=>`<tr><td>${esc(c.lien)}${c.n>1?` (×${c.n})`:''}</td><td class="r">${f1(c.I)} A</td><td class="r">${f1(c.L)} m</td><td class="r"><b>${String(c.S).replace('.',',')} mm²</b><br><small class="muted">${c.m.metal==='aluminium'?'alu':'cuivre'} ${c.m.ame||'souple'}</small></td></tr>`).join('')}</table>
+    <p class="muted small">Côté panneaux et batterie : cuivre souple uniquement. Côté 230 V : le câble le moins cher qui convient, cuivre ou aluminium (section plus grosse en aluminium). Chute de tension limitée à 3 % côté panneaux, 1,5 à 2 % côté batterie ; courant admissible corrigé pour 40 °C. Longueurs aller simple (réglables plus bas).</p>
     ${a.protections.map(p=>`<div class="res"><div class="ic">🛡️</div><div class="tx"><b>${esc(GENRES[p.genre])}${p.calibre?` ${p.calibre} A`:''}${p.n>1?` × ${p.n}`:''}</b><small>${esc(p.pourquoi)}${p.vmin?` · tension ≥ ${Math.ceil(p.vmin)} V DC`:''}</small></div></div>`).join('')}`;
 }
 
@@ -538,7 +564,7 @@ function ouvrirPickerMateriel(){
 function renderPicker(){
   const q = ($('rechPk')?.value||'').toLowerCase();
   const L = materiel.filter(m=>m.nom.toLowerCase().includes(q));
-  $('listePk').innerHTML = L.length ? L.map(m=>`<div class="art" onclick="ajouterDepuisMateriel('${m.id}')"><div class="info"><b>${esc(m.nom)}</b><small>${esc(TYPES[m.type])}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div><span class="iconbtn">＋</span></div>`).join('') : '<div class="empty">Aucun article.</div>';
+  $('listePk').innerHTML = L.length ? L.map(m=>`<div class="art" onclick="ajouterDepuisMateriel('${m.id}')"><span class="icm">${iconeMat(m)}</span><div class="info"><b>${esc(m.nom)}</b><small>${esc(TYPES[m.type])}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div><span class="iconbtn">＋</span></div>`).join('') : '<div class="empty">Aucun article.</div>';
 }
 function ajouterDepuisMateriel(id){
   const m = materiel.find(x=>x.id===id); if(!m) return;
@@ -555,21 +581,86 @@ function specTexte(m){
     case 'regulateur': return `${m.techno==='pwm'?'PWM':'MPPT'} · ${m.a} A · panneaux ${m.vocMax} V max · ${(m.tensions||[]).join('/')} V`;
     case 'convertisseur': return `${fmt(m.w)} W · ${m.v} V · ${m.onde==='modifie'?'onde modifiée':'pur sinus'} · à vide ${m.idle} W`;
     case 'hybride': return `${fmt(m.w)} W · ${m.v} V · PV ${fmt(m.pvMax)} W, ${m.vocMax} V max, MPPT ${m.mpptMin}–${m.mpptMax} V · charge ${m.iCharge} A · à vide ${m.idle} W`;
-    case 'cable': return `${String(m.section).replace('.',',')} mm² · ${m.usage==='pv'?'solaire (panneaux)':m.usage==='ac'?'230 V':'batterie (courant continu)'} · prix au mètre`;
+    case 'cable': return `${String(m.section).replace('.',',')} mm² · ${m.metal==='aluminium'?'aluminium':'cuivre'} ${m.ame==='rigide'?'rigide':'souple'} · ${m.usage==='pv'?'panneaux':m.usage==='ac'?'230 V':'batterie'} · prix au mètre`;
     case 'protection': return `${GENRES[m.genre]||''}${m.calibre?` · ${m.calibre} A`:''}${m.vmax?` · ${m.vmax} V`:''}`;
     default: return m.auto==='un' ? 'Ajouté au devis (1)' : m.auto==='panneaux' ? 'Ajouté au devis (× nombre de panneaux)' : m.auto==='batteries' ? 'Ajouté au devis (× nombre de batteries)' : 'Ajout manuel';
   }
 }
+/* Icône et fiche descriptive de chaque article */
+function iconeMat(m){
+  switch(m.type){
+    case 'panneau': return '🔆'; case 'batterie': return '🔋'; case 'hybride': return '⚡'; case 'convertisseur': return '🔄';
+    case 'regulateur': return '🎛️'; case 'cable': return '🔌'; case 'protection': return m.genre==='terre' ? '⏚' : '🛡️';
+    default: { const n = (m.nom||'').toLowerCase(); return /support|fixation/.test(n) ? '🔩' : /install|pose/.test(n) ? '🛠️' : /transport/.test(n) ? '🚚' : '🧰'; }
+  }
+}
+const vf = x => String(x).replace('.', ',');
+function descriptionMat(m){
+  switch(m.type){
+    case 'panneau': return m.cellules===36
+      ? 'Panneau photovoltaïque « 12 V » (36 cellules). Sa tension convient à un régulateur PWM sur batterie 12 V, ou en série sur un MPPT.'
+      : 'Grand panneau photovoltaïque (' + (m.cellules||60) + ' cellules). Sa tension élevée demande un régulateur MPPT ou un onduleur hybride : sur un régulateur PWM, une grande partie de sa puissance serait perdue.';
+    case 'batterie': return m.tech==='lithium'
+      ? 'Batterie lithium fer phosphate (LiFePO4) avec BMS intégré : utilisable à 80 %, 3 000 à 6 000 cycles, supporte bien la chaleur. Plus chère à l\'achat, mais dure environ 10 ans.'
+      : 'Batterie plomb gel / AGM sans entretien : bon marché, mais utilisable à 50 % seulement et 500 à 1 200 cycles. La chaleur réduit fortement sa durée de vie (souvent 2 à 4 ans au Tchad).';
+    case 'regulateur': return m.techno==='pwm'
+      ? 'Régulateur simple (PWM) : relie les panneaux à la batterie en les ramenant à sa tension. Bon marché, à utiliser avec des panneaux 12 V de 36 cellules ; avec de grands panneaux, une grande partie de leur puissance est perdue.'
+      : 'Régulateur MPPT : convertit la tension élevée des panneaux pour charger la batterie en tirant le maximum de leur puissance. Permet de mettre de grands panneaux en série.';
+    case 'convertisseur': return m.onde==='modifie'
+      ? 'Convertisseur séparé à onde modifiée : transforme le 12/24/48 V de la batterie en 230 V. Bon marché, mais déconseillé pour les frigos, moteurs, ventilateurs et chargeurs d\'ordinateur.'
+      : 'Convertisseur séparé pur sinus : transforme le courant de la batterie en 230 V identique à celui du réseau. Convient à tous les appareils. S\'utilise avec un régulateur séparé.';
+    case 'hybride': return 'Onduleur hybride tout-en-un : régulateur MPPT, chargeur de batterie et onduleur pur sinus dans un seul appareil. Il peut aussi recharger les batteries depuis le réseau ou un groupe. Pas de régulateur ni de convertisseur à acheter en plus.';
+    case 'cable': {
+      const al = m.metal==='aluminium', iz = ((al ? SC.IZ_AL : SC.IZ)[m.section]||0)*SC.K_TEMP_CABLE;
+      const usage = m.usage==='pv' ? 'entre les panneaux et le régulateur ou l\'onduleur (double isolation, résiste aux UV)' : m.usage==='dc' ? 'entre la batterie et le régulateur ou l\'onduleur (gros courants continus)' : 'pour la sortie 230 V vers le tableau et les circuits';
+      return `Câble ${al?'aluminium':'cuivre'} ${m.ame==='rigide'?'rigide (âme massive, pour pose fixe)':'souple (âme en fils fins, se raccorde bien sur cosses)'}, ${vf(m.section)} mm², ${usage}. Courant admissible : environ ${Math.round(iz)} A par 40 °C.${al?' L\'aluminium conduit moins bien que le cuivre : il faut une section plus grosse.':''}`; }
+    case 'protection': return ({
+      fusible_dc:'Protège le câble de la batterie contre les courts-circuits. À placer au plus près de la borne + de la batterie.',
+      sect_pv:'Permet de couper les panneaux pour intervenir en sécurité. Doit être prévu pour le courant continu et la tension des panneaux.',
+      fusible_pv:'Protège chaque chaîne de panneaux contre le retour de courant des autres chaînes (obligatoire à partir de 3 chaînes en parallèle).',
+      parafoudre_pv:'Protège l\'onduleur ou le régulateur contre les surtensions dues à la foudre, fréquentes en saison des pluies.',
+      disj_ac:'Protège les personnes contre l\'électrocution (différentiel 30 mA) et le circuit 230 V contre les surcharges.',
+      terre:'Relie à la terre les cadres des panneaux et la carcasse de l\'onduleur pour la sécurité des personnes.' })[m.genre] || '';
+    default: return m.auto==='un' ? 'Ajouté une fois à chaque devis.' : m.auto==='panneaux' ? 'Ajouté au devis pour chaque panneau.' : m.auto==='batteries' ? 'Ajouté au devis pour chaque batterie.' : 'Ajouté à la main dans le devis.';
+  }
+}
+function caracteristiquesMat(m){
+  const L = [];
+  switch(m.type){
+    case 'panneau': L.push(['Puissance crête', fmt(m.w)+' Wc'], ['Tension à vide (Voc)', f1(m.voc)+' V'], ['Tension de puissance max (Vmp)', f1(m.vmp)+' V'], ['Courant de court-circuit (Isc)', f2(m.isc)+' A'], ['Courant de puissance max (Imp)', f2(m.imp)+' A'], ['Coefficient de Voc', vf(m.bVoc)+' %/°C'], ['Coefficient de puissance', vf(m.gP)+' %/°C']); break;
+    case 'batterie': L.push(['Technologie', m.tech==='lithium'?'Lithium LiFePO4':'Plomb gel / AGM'], ['Tension', vf(m.v)+' V'], ['Capacité', m.ah+' Ah'], ['Énergie', f2(m.v*m.ah/1000)+' kWh'], ['Énergie utilisable', f2(m.v*m.ah/1000*(m.tech==='lithium'?0.8:0.5))+' kWh'], ['Courant de charge max', m.iCh+' A'], ['Courant de décharge max', m.iDech+' A']); break;
+    case 'regulateur': L.push(['Technologie', m.techno==='pwm'?'PWM (simple)':'MPPT'], ['Courant de charge', m.a+' A'], ['Tension des panneaux max', m.vocMax+' V'], ['Batteries acceptées', (m.tensions||[]).join(' / ')+' V']); break;
+    case 'convertisseur': L.push(['Puissance', fmt(m.w)+' W'], ['Forme d\'onde', m.onde==='modifie'?'Onde modifiée':'Pur sinus'], ['Tension de batterie', m.v+' V'], ['Au démarrage', fmt(m.w*(m.surge||2))+' W pendant quelques secondes'], ['Consommation à vide', m.idle+' W, soit '+f2(m.idle*24/1000)+' kWh/jour'], ['Rendement', Math.round((m.eta||0.9)*100)+' %']); break;
+    case 'hybride': L.push(['Puissance', fmt(m.w)+' W (pur sinus)'], ['Tension de batterie', m.v+' V'], ['Puissance solaire max', fmt(m.pvMax)+' Wc'], ['Tension des panneaux max', m.vocMax+' V'], ['Plage MPPT', m.mpptMin+' – '+m.mpptMax+' V'], ['Courant de charge solaire', m.iCharge+' A'], ['Au démarrage', fmt(m.w*(m.surge||2))+' W'], ['Consommation à vide', m.idle+' W, soit '+f2(m.idle*24/1000)+' kWh/jour']); break;
+    case 'cable': L.push(['Section', vf(m.section)+' mm²'], ['Métal', m.metal==='aluminium'?'Aluminium':'Cuivre'], ['Âme', m.ame==='rigide'?'Rigide':'Souple'], ['Usage', m.usage==='pv'?'Panneaux (solaire)':m.usage==='dc'?'Batterie (courant continu)':'230 V']); break;
+    case 'protection': L.push(['Type', GENRES[m.genre]||'']); if(m.calibre) L.push(['Calibre', m.calibre+' A']); if(m.vmax) L.push(['Tension max', m.vmax+' V']); break;
+  }
+  return L;
+}
+function ficheMateriel(m, avecBouton){
+  const lo = +m.prixMin||0, hi = +m.prixMax||0;
+  return `<div class="fiche">
+    <p>${esc(descriptionMat(m))}</p>
+    ${caracteristiquesMat(m).map(([k,v]) => `<div class="resume-l"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join('')}
+    <div class="resume-l"><span>Prix${m.type==='cable'?' au mètre':''}</span><span><b>${lo||hi ? fmt(lo)+' – '+fmt(hi)+' F CFA' : 'à renseigner'}</b></span></div>
+    ${m.prixDefaut ? '<p class="muted small">Prix indicatifs du marché (relevés en ligne, novembre 2026) : remplacez-les par vos propres prix.</p>' : ''}
+    ${avecBouton ? `<button class="btn sec small" onclick="ouvrirMateriel('${m.id}')">✏️ Modifier</button>` : ''}
+  </div>`;
+}
 const ordreMat = m => m.w||m.a||m.ah||m.section||m.calibre||m.vmax||0;
 function renderMateriel(){
-  const sans = materiel.filter(m=>!m.prix).length;
+  const sans = materiel.filter(m=>!(m.prixMax>0 || m.prixMin>0)).length, indicatifs = materiel.filter(m=>m.prixDefaut).length;
+  const niv = reglages.niveauPrix||'moyen';
   $('matBox').innerHTML = `
     <p class="muted small" style="margin:0 0 10px">Renseignez vos références, leurs caractéristiques (fiche technique) et vos prix. L'application choisit le matériel dans cette liste pour le dimensionnement et chiffre le devis avec vos prix.</p>
+    <label style="margin-top:0">Prix utilisé dans les devis</label>
+    <div class="chips" style="margin-bottom:10px">${[['min','Minimum'],['moyen','Moyen'],['max','Maximum']].map(([v,t])=>`<button class="chip ${niv===v?'on':''}" onclick="setNiveauPrix('${v}')">${t}</button>`).join('')}</div>
     ${sans?`<div class="alert" style="margin:0 0 10px">⚠ ${sans} article(s) sans prix. Touchez un article pour saisir son prix.</div>`:''}
+    ${indicatifs?`<div class="alert info" style="margin:0 0 10px">ℹ ${indicatifs} article(s) ont des prix indicatifs du marché (en italique). Remplacez-les par vos prix.</div>`:''}
     <button class="btn" onclick="ouvrirMateriel(null)">＋ Ajouter un article</button>
     ${Object.keys(TYPES).map(t=>{
       const L = mat(t).sort((a,b)=>String(a.techno||a.tech||a.genre||a.usage||'').localeCompare(String(b.techno||b.tech||b.genre||b.usage||'')) || (a.v||0)-(b.v||0) || ordreMat(a)-ordreMat(b) || a.nom.localeCompare(b.nom,'fr'));
-      return `<details class="grpd"><summary class="grp">${TYPES[t]} <span class="muted">(${L.length})</span></summary>` + (L.length ? L.map(m=>`<div class="art" onclick="ouvrirMateriel('${m.id}')"><div class="info"><b>${esc(m.nom)}</b><small>${esc(specTexte(m))}</small></div><div class="tt ${m.prix?'':'miss'}">${m.prix?fmt(m.prix):'prix ?'}</div></div>`).join('') : '<div class="empty small">Aucun article.</div>') + '</details>';
+      return `<details class="grpd"><summary class="grp">${TYPES[t]} <span class="muted">(${L.length})</span></summary>` + (L.length ? L.map(m=>`<details class="artd"><summary class="art"><span class="icm">${iconeMat(m)}</span><div class="info"><b>${esc(m.nom)}</b><small>${esc(specTexte(m))}</small></div><div class="tt ${m.prixMax||m.prixMin?'':'miss'} ${m.prixDefaut?'indic':''}">${m.prixMax||m.prixMin?fmt(m.prixMin)+'<br>'+fmt(m.prixMax):'prix ?'}</div></summary>${ficheMateriel(m, true)}</details>`).join('') : '<div class="empty small">Aucun article.</div>') + '</details>';
     }).join('')}`;
 }
 let editMat = null;
@@ -582,13 +673,16 @@ const DEPENDANCES = {
   hybride: e => DONNEES.specHybride(e.w||3000, e.v||24),
   regulateur: e => DONNEES.specRegulateur(e.techno, e.a||30)
 };
-const PILOTES = { panneau:['w'], batterie:['v','ah'], convertisseur:['w'], hybride:['w'], regulateur:['a'] };
+const PILOTES = { panneau:['w'], batterie:['v','ah'], convertisseur:['w'], hybride:['w'], regulateur:['a'], cable:['section'], protection:['calibre','vmax'] };
 function proposerDependants(){
-  const e = editMat, f = DEPENDANCES[e.type]; if(!f || !e._auto) return;
-  const s = f(e);
+  const e = editMat; if(!e._auto) return;
+  const f = DEPENDANCES[e.type], s = f ? f(e) : {};
   for(const k in s) if(e._auto.includes(k)){ e[k] = s[k]; const el = $('em_'+k); if(el) el.value = s[k]; }
+  // Prix du marché proposés d'après les caractéristiques, tant que l'utilisateur n'a pas saisi les siens
+  const p = DONNEES.prixMarche(e);
+  if(p) [['prixMin',p[0]],['prixMax',p[1]]].forEach(([k,v]) => { if(e._auto.includes(k)){ e[k] = v; const el = $('em_'+k); if(el) el.value = v; } });
 }
-function champsAuto(type){ const f = DEPENDANCES[type]; return f ? Object.keys(f({ ...DEFAUTS_TYPE[type]() })) : []; }
+function champsAuto(type){ const f = DEPENDANCES[type]; return (f ? Object.keys(f({ ...DEFAUTS_TYPE[type]() })) : []).concat(['prixMin','prixMax']); }
 function ouvrirMateriel(id){
   const m = id ? materiel.find(x=>x.id===id) : null;
   editMat = m ? { ...JSON.parse(JSON.stringify(m)), _auto:[] } : { id:null, type:'panneau', nom:'', prix:0, w:450, ...specPanneau(450), _auto: champsAuto('panneau') };
@@ -604,7 +698,7 @@ const DEFAUTS_TYPE = {
   panneau: () => ({ w:450, ...specPanneau(450) }), batterie: () => ({ tech:'lithium', v:25.6, ah:100, ...specBatterie('lithium',25.6,100) }),
   regulateur: () => ({ techno:'mppt', a:60, vocMax:150, tensions:[12,24,48] }), convertisseur: () => ({ w:3000, v:24, ...specConvertisseur(3000,'pur') }),
   hybride: () => ({ w:3500, v:24, pvMax:4000, vocMax:500, mpptMin:120, mpptMax:450, iCharge:100, idle:40, surge:2, eta:0.92 }),
-  cable: () => ({ usage:'dc', section:16 }), protection: () => ({ genre:'fusible_dc', calibre:100, vmax:0 }), autre: () => ({ auto:'non' })
+  cable: () => ({ usage:'dc', section:16, ame:'souple', metal:'cuivre' }), protection: () => ({ genre:'fusible_dc', calibre:100, vmax:0 }), autre: () => ({ auto:'non' })
 };
 function changerType(t){ lireChampsMat(); editMat = { id:null, type:t, nom:'', prix:editMat.prix||0, ...DEFAUTS_TYPE[t](), _auto: champsAuto(t) }; renderChampsMat(); }
 function choixEdit(k, v){ lireChampsMat(); editMat[k] = v; renderChampsMat(); proposerDependants(); renderChampsMat(); }
@@ -618,14 +712,20 @@ function renderChampsMat(){
     <label>Tensions de batterie acceptées</label><div class="chips">${[12,24,48].map(v=>`<button class="chip ${(e.tensions||[]).includes(v)?'on':''}" onclick="basculerTension(${v})">${v} V</button>`).join('')}</div>`;
   if(e.type==='convertisseur') h += `<label>Forme d'onde</label><div class="chips">${chip('onde','pur','Pur sinus')}${chip('onde','modifie','Onde modifiée')}</div>`;
   if(e.type==='convertisseur' || e.type==='hybride') h += `<label>Tension de batterie</label><div class="chips">${[12,24,48].map(v=>chip('v',v,v+' V')).join('')}</div>`;
-  if(e.type==='cable') h += `<label>Usage</label><div class="chips">${chip('usage','pv','Panneaux')}${chip('usage','dc','Batterie')}${chip('usage','ac','230 V')}</div>`;
+  if(e.type==='cable') h += `<label>Usage</label><div class="chips">${chip('usage','pv','Panneaux')}${chip('usage','dc','Batterie')}${chip('usage','ac','230 V')}</div>
+    <label>Âme</label><div class="chips">${chip('ame','souple','Souple')}${chip('ame','rigide','Rigide')}</div>
+    <label>Métal</label><div class="chips">${chip('metal','cuivre','Cuivre')}${chip('metal','aluminium','Aluminium')}</div>
+    ${e.usage!=='ac' && (e.ame==='rigide' || e.metal==='aluminium') ? '<div class="alert">Côté panneaux et batterie, l\'application n\'utilise que du cuivre souple : ce câble ne sera proposé que si vous le passez en « 230 V ».</div>' : ''}`;
   if(e.type==='protection') h += `<label>Genre</label><select id="emGenre" onchange="choixEdit('genre',this.value)">${Object.entries(GENRES).map(([k,t])=>`<option value="${k}" ${e.genre===k?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
   if(e.type==='autre') h += `<label>Ajout automatique au devis</label><div class="chips">${[['non','Non'],['un','1 fois'],['panneaux','× panneaux'],['batteries','× batteries']].map(([v,t])=>chip('auto',v,t)).join('')}</div>`;
   const ch = CHAMPS[e.type] || [];
   for(let i=0;i<ch.length;i+=2){
     h += '<div class="row">' + ch.slice(i,i+2).map(([k,l,s])=>`<div><label>${esc(l)}</label><input id="em_${k}" class="${(e._auto||[]).includes(k)?'auto':''}" type="number" inputmode="decimal" step="${s}" value="${e[k]??''}" /></div>`).join('') + '</div>';
   }
-  h += `<label>Prix unitaire (F CFA${e.type==='cable'?' par mètre':''})</label><input id="emPrix" type="number" inputmode="decimal" value="${e.prix||''}" placeholder="0" />`;
+  const ital = k => (e._auto||[]).includes(k) || e.prixDefaut ? 'auto' : '';
+  h += `<div class="row"><div><label>Prix minimum (F CFA${e.type==='cable'?'/m':''})</label><input id="em_prixMin" class="${ital('prixMin')}" type="number" inputmode="decimal" value="${e.prixMin||''}" placeholder="0" /></div>
+    <div><label>Prix maximum (F CFA${e.type==='cable'?'/m':''})</label><input id="em_prixMax" class="${ital('prixMax')}" type="number" inputmode="decimal" value="${e.prixMax||''}" placeholder="0" /></div></div>
+    ${e.prixDefaut || (e._auto||[]).includes('prixMin') ? '<p class="muted small" style="margin:4px 0 0">Prix indicatifs du marché, proposés d\'après les caractéristiques : remplacez-les par vos prix.</p>' : ''}`;
   $('emChamps').innerHTML = h;
 }
 // Saisie dans une fiche : un champ « pilote » recalcule les valeurs proposées ; un champ modifié à la main n'est plus recalculé
@@ -634,11 +734,12 @@ document.addEventListener('input', ev => {
   const k = t.id.slice(3);
   if((PILOTES[editMat.type]||[]).includes(k)){ lireChampsMat(); proposerDependants(); }
   else if(editMat._auto && editMat._auto.includes(k)){ editMat._auto = editMat._auto.filter(x => x!==k); t.classList.remove('auto'); }
+  if(k==='prixMin' || k==='prixMax'){ editMat._prixTouche = true; t.classList.remove('auto'); }
 });
 function lireChampsMat(){
   const e = editMat;
   if($('emNom')) e.nom = $('emNom').value.trim();
-  if($('emPrix')) e.prix = parseFloat($('emPrix').value)||0;
+  ['prixMin','prixMax'].forEach(k => { const el = $('em_'+k); if(el) e[k] = Math.max(0, parseFloat(el.value)||0); });
   (CHAMPS[e.type]||[]).forEach(([k]) => { const el = $('em_'+k); if(el && el.value!=='' && !isNaN(parseFloat(el.value))) e[k] = parseFloat(el.value); });
 }
 function enregistrerMateriel(){
@@ -650,8 +751,13 @@ function enregistrerMateriel(){
   if(e.type==='hybride' && !(e.mpptMin < e.mpptMax && e.mpptMax <= e.vocMax)) return toast('Plage MPPT incohérente (min < max ≤ Voc max)');
   if(e.type==='panneau' && !(e.vmp < e.voc && e.imp < e.isc)) return toast('Il faut Vmp < Voc et Imp < Isc');
   if(e.type==='panneau'){ if(e.bVoc===undefined) e.bVoc = -0.28; if(e.gP===undefined) e.gP = -0.36; }
+  if(e.prixMin > e.prixMax && e.prixMax > 0) [e.prixMin, e.prixMax] = [e.prixMax, e.prixMin];
+  if(e.prixMin > 0 && !(e.prixMax > 0)) e.prixMax = e.prixMin;
+  if(e._prixTouche) e.prixDefaut = false;
+  else if((e._auto||[]).includes('prixMin')) e.prixDefaut = true;
+  e.prix = prixDe(e);
   if(!e.nom) e.nom = nomAuto(e);
-  delete e._auto;
+  delete e._auto; delete e._prixTouche;
   if(e.id){ const i = materiel.findIndex(m=>m.id===e.id); materiel[i] = e; } else { e.id = uid('m'); materiel.push(e); }
   ecrire(K.mat, materiel); versionMat++; renderMateriel(); closeSheet(); toast('Article enregistré ✅');
 }
@@ -882,7 +988,7 @@ function importerSauvegarde(e){
   reglages = {...reglages, ...lire(K.reg, {})};
   if(reglages.simul === 0.8) reglages.simul = 1;                // ancienne valeur par défaut (v1)
   materiel = lire(K.mat, null);
-  if(!Array.isArray(materiel) || !materiel.length){ materiel = materielParDefaut(); reglages.catalogue = 2; ecrire(K.reg, reglages); }
+  if(!Array.isArray(materiel) || !materiel.length){ materiel = materielParDefaut(); reglages.catalogue = 3; ecrire(K.reg, reglages); }
   else materiel = migrerMateriel(materiel);
   ecrire(K.mat, materiel);
   dossiers = lire(K.dos, []).map(migrerEtude); ecrire(K.dos, dossiers);

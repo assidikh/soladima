@@ -154,3 +154,21 @@ test('fiches : caractéristiques typiques cohérentes', () => {
   assert.equal(D.specRegulateur('pwm', 30).vocMax, 50);
   assert.deepEqual(D.specRegulateur('mppt', 100).tensions, [12,24,48]);
 });
+
+test('prix du marché : fourchettes cohérentes avec les relevés', () => {
+  const p550 = D.prixMarche({ type:'panneau', w:550 });
+  assert.ok(p550[0] >= 60000 && p550[1] <= 130000 && p550[0] < p550[1]);
+  const gel = D.prixMarche({ type:'batterie', tech:'gel', v:12, ah:200 });
+  assert.ok(gel[0] >= 110000 && gel[1] <= 280000);
+  D.materielParDefaut().forEach(m => { const p = D.prixMarche(m); assert.ok(p && p[0] > 0 && p[0] <= p[1], JSON.stringify(m)); });
+});
+
+test('câbles : aluminium plus gros que le cuivre, interdit côté batterie', () => {
+  const cu = { id:'cu', type:'cable', usage:'ac', section:6, ame:'rigide', metal:'cuivre', prix:1000 };
+  const al = [16,25].map(s => ({ id:'al'+s, type:'cable', usage:'ac', section:s, ame:'rigide', metal:'aluminium', prix:100 }));
+  // 32 A sur 40 m en 230 V, 3 % : cuivre 6 mm² suffit en chute de tension ; l'aluminium bon marché doit être plus gros
+  const c = C.choisirCable([cu, ...al], 'ac', 32, 40, 230, 0.03, 32, 1.5);
+  assert.equal(c.m.metal, 'aluminium'); assert.ok(c.S >= 16);
+  const dc = C.choisirCable([{ type:'cable', usage:'dc', section:50, ame:'souple', metal:'aluminium', prix:1 }], 'dc', 100, 2, 24, 0.02, 125);
+  assert.equal(dc.m.metal, 'cuivre');                     // l'aluminium est écarté côté batterie
+});

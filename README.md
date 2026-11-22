@@ -52,8 +52,12 @@ efface aussi celles de SolaDima.
    sur 10 ans.
 3. **Devis** : lignes et prix, remise, conditions ; export PDF / WhatsApp avec
    le bilan de consommation et la note de calcul.
-4. **Matériel** : votre catalogue, avec les caractéristiques des fiches
-   techniques, et **vos prix** (à renseigner au départ).
+4. **Matériel** : votre catalogue, avec une icône et une fiche descriptive
+   pour chaque article, les caractéristiques des fiches techniques et un
+   **prix minimum et maximum**. Des prix indicatifs du marché (relevés en
+   novembre 2026) sont proposés : remplacez-les par vos prix. Le devis
+   utilise au choix le prix minimum, moyen ou maximum. Les câbles précisent
+   l'âme (souple / rigide) et le métal (cuivre / aluminium).
 5. **Plus** : dossiers, entreprise, logo, valeurs par défaut, prix du
    carburant, sauvegarde.
 
